@@ -2,6 +2,20 @@
 
 Meridian provides turnkey infrastructure for launching compliant stablecoins backed by sovereign bonds and fiat reserves. Unlike competitors who focus exclusively on USD, Meridian enables the 99% of the market that's currently underserved: non-USD currencies.
 
+## 🌍 Why Meridian Exists
+
+**The Problem:** Today's stablecoin infrastructure is USD-centric. Circle, Tether, and Stripe/Bridge focus almost exclusively on USD-backed stablecoins, leaving 195+ countries and their currencies underserved. Banks and fintechs in Europe, Latin America, Asia, and Africa face an 18-month DIY journey to launch a compliant EUR, GBP, or JPY stablecoin—requiring blockchain expertise, regulatory navigation, and oracle integration they don't have.
+
+**The Opportunity:** 99% of the world's population uses non-USD currencies. The EUR, CNY, JPY, GBP, and INR represent $100+ trillion in annual transaction volume. Yet these markets lack the stablecoin infrastructure that USD enjoys. Meridian democratizes stablecoin issuance for the global majority.
+
+**The Solution:** Meridian is "Stripe for Multi-Currency Stablecoins"—turnkey infrastructure that enables any institution to launch a compliant, multi-currency stablecoin in 30 days instead of 18 months. We provide the smart contracts, oracle integration, compliance modules, and regulatory templates so banks can focus on their customers, not blockchain plumbing.
+
+**The Impact:** By making multi-currency stablecoins accessible, Meridian unlocks:
+- **Cross-border payments** with local currency stablecoins (no USD intermediary)
+- **Emerging market access** to blockchain finance (BRL, INR, MXN stablecoins)
+- **Corporate treasury tools** with custom multi-currency baskets for FX hedging
+- **Financial inclusion** for the 1.4 billion people in non-USD economies
+
 ## 🎯 Product Vision
 
 Launch compliant stablecoins in **30 days** vs. 18 months DIY:
