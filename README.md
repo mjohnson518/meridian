@@ -6,15 +6,15 @@ Meridian provides turnkey infrastructure for launching compliant stablecoins bac
 
 **The Problem:** Today's stablecoin infrastructure is USD-centric. Circle, Tether, and Stripe/Bridge focus almost exclusively on USD-backed stablecoins, leaving 195+ countries and their currencies underserved. Banks and fintechs in Europe, Latin America, Asia, and Africa face an 18-month DIY journey to launch a compliant EUR, GBP, or JPY stablecoin—requiring blockchain expertise, regulatory navigation, and oracle integration they don't have.
 
-**The Opportunity:** 99% of the world's population uses non-USD currencies. The EUR, CNY, JPY, GBP, and INR represent $100+ trillion in annual transaction volume. Yet these markets lack the stablecoin infrastructure that USD enjoys. Meridian democratizes stablecoin issuance for the global majority.
+**The Opportunity:** The EUR, CNY, JPY, GBP, and INR represent $100+ trillion in annual transaction volume. Yet these markets lack the stablecoin infrastructure that USD enjoys. Meridian democratizes stablecoin issuance for the global majority.
 
-**The Solution:** Meridian is "Stripe for Multi-Currency Stablecoins"—turnkey infrastructure that enables any institution to launch a compliant, multi-currency stablecoin in 30 days instead of 18 months. We provide the smart contracts, oracle integration, compliance modules, and regulatory templates so banks can focus on their customers, not blockchain plumbing.
+**The Solution:** Meridian is "Stripe for Multi-Currency Stablecoins" — turnkey infra that enables any institution to launch a compliant, multi-currency stablecoin in 30 days instead of 18 months. We provide the smart contracts, oracle integration, compliance modules, and regulatory templates so banks can focus on their customers, not blockchain plumbing.
 
 **The Impact:** By making multi-currency stablecoins accessible, Meridian unlocks:
 - **Cross-border payments** with local currency stablecoins (no USD intermediary)
 - **Emerging market access** to blockchain finance (BRL, INR, MXN stablecoins)
 - **Corporate treasury tools** with custom multi-currency baskets for FX hedging
-- **Financial inclusion** for the 1.4 billion people in non-USD economies
+- **Financial inclusion** for the ~7 billion people in non-USD economies
 
 ## 🎯 Product Vision
 
