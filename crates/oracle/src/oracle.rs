@@ -336,7 +336,7 @@ impl ChainlinkOracle {
         let mut feeds = self.price_feeds.write().await;
         if let Some(feed) = feeds.get_mut(pair) {
             feed.latest_price = price;
-            feed.latest_round = round_id;
+            feed.latest_round = round_id.into();
             feed.updated_at = DateTime::from_timestamp(updated_at.as_u64() as i64, 0)
                 .unwrap_or_else(Utc::now);
             feed.is_stale = is_stale;

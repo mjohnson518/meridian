@@ -1,7 +1,7 @@
 //! Database models
 
 use chrono::{DateTime, Utc};
-use meridian_basket::{BasketType, CurrencyBasket, RebalanceStrategy};
+use meridian_basket::{BasketType, CurrencyBasket};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;

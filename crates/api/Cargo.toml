@@ -18,6 +18,9 @@ meridian-oracle = { path = "../oracle" }
 actix-web = { workspace = true }
 actix-cors = { workspace = true }
 
+# Blockchain
+ethers = { workspace = true }
+
 # Async runtime
 tokio = { workspace = true }
 

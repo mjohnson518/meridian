@@ -42,7 +42,7 @@ pub struct ComponentRequest {
 }
 
 /// Rebalancing strategy
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RebalanceStrategyRequest {
     None,

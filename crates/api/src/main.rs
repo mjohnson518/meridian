@@ -12,7 +12,6 @@ use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use state::AppState;
 use std::sync::Arc;
-use tracing_subscriber;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

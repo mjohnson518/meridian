@@ -4,7 +4,6 @@ use crate::error::DbError;
 use crate::models::BasketRow;
 use crate::Pool;
 use meridian_basket::CurrencyBasket;
-use sqlx::Row;
 use uuid::Uuid;
 
 /// Repository for basket operations

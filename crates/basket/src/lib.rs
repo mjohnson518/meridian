@@ -570,7 +570,7 @@ impl CurrencyBasket {
                     now >= *scheduled_time
                         && self
                             .last_rebalanced
-                            .map_or(true, |last| last < *scheduled_time)
+                            .is_none_or(|last| last < *scheduled_time)
                 }))
             }
         }

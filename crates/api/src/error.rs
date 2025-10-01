@@ -17,6 +17,7 @@ pub struct ErrorResponse {
 
 /// API errors
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum ApiError {
     BasketError(BasketError),
     OracleError(OracleError),
