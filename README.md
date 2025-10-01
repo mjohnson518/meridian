@@ -17,8 +17,8 @@ meridian/
 ├── crates/
 │   ├── basket/           # ✅ Currency basket engine
 │   ├── oracle/           # ✅ Chainlink integration
-│   ├── api/              # 🚧 REST API server
-│   ├── db/               # 🚧 Database models
+│   ├── api/              # ✅ REST API server
+│   ├── db/               # ✅ PostgreSQL database layer
 │   └── compliance/       # 🚧 Compliance module
 ├── contracts/            # ✅ Solidity smart contracts
 └── dashboard/            # 🚧 Next.js frontend
@@ -200,11 +200,58 @@ cargo run --bin meridian-api
 curl http://localhost:8080/health
 ```
 
-### 5. Web Dashboard
+### 5. Database Layer ✅ COMPLETE
+
+PostgreSQL database layer with SQLx for persistent storage.
+
+**Features:**
+- ✅ Repository pattern for clean data access
+- ✅ Connection pooling with PgPool
+- ✅ Type-safe queries with SQLx compile-time verification
+- ✅ Database migrations (4 tables)
+- ✅ Transaction support
+- ✅ JSONB storage for complex structures
+- ✅ Immutable audit trail
+
+**Tables:**
+- `baskets` - Currency basket configurations
+- `price_history` - Historical FX price data
+- `stablecoins` - Deployed stablecoin instances
+- `audit_logs` - Immutable audit trail (cannot be modified/deleted)
+
+**Repositories:**
+- `BasketRepository` - CRUD operations for baskets
+- `PriceRepository` - Price history and statistics
+- `StablecoinRepository` - Stablecoin management
+- `AuditRepository` - Audit trail queries
+
+**Usage:**
+```bash
+# Setup database
+createdb meridian_dev
+export DATABASE_URL="postgresql://postgres:password@localhost/meridian_dev"
+
+# Run migrations
+cd crates/db
+sqlx migrate run
+
+# Or programmatically
+use meridian_db::{create_pool, run_migrations};
+let pool = create_pool(&database_url).await?;
+run_migrations(&pool).await?;
+```
+
+**Test Coverage:**
+- ✅ Repository tests with PostgreSQL
+- ✅ Migration tests
+- ✅ Audit log immutability
+- ✅ Transaction rollback
+
+### 6. Web Dashboard
 
 Customer-facing interface for managing stablecoins (Next.js).
 
-### 6. Compliance Module
+### 7. Compliance Module
 
 Automated regulatory compliance for multiple jurisdictions.
 
@@ -270,6 +317,7 @@ cargo test --package meridian-basket test_imf_sdr_basket_valuation
 | Chainlink Integration | ✅ Complete |
 | Smart Contracts | ✅ Complete |
 | REST API | ✅ Complete |
+| Database Layer | ✅ Complete |
 | Web Dashboard | 🚧 Next Up |
 | Compliance Module | 🚧 Planned |
 

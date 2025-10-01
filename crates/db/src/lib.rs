@@ -1,10 +1,87 @@
 //! # Meridian Database Layer
 //!
-//! PostgreSQL database models and access layer
+//! PostgreSQL database access layer with SQLx
 //!
-//! This module will be implemented in Phase 1, Month 3
+//! ## Features
+//!
+//! - Repository pattern for data access
+//! - Connection pooling with PgPool
+//! - Transaction support
+//! - Type-safe queries with SQLx
+//! - Migration support
 
-pub fn placeholder() {
-    // Database implementation coming soon
+mod error;
+mod models;
+mod repositories;
+
+pub use error::DbError;
+pub use models::*;
+pub use repositories::*;
+
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use sqlx::PgPool;
+use std::time::Duration;
+
+/// Database connection pool
+pub type Pool = PgPool;
+
+/// Creates a new database connection pool
+///
+/// # Arguments
+///
+/// * `database_url` - PostgreSQL connection string
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use meridian_db::create_pool;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let pool = create_pool("postgresql://user:pass@localhost/meridian").await?;
+/// # Ok(())
+/// # }
+/// ```
+pub async fn create_pool(database_url: &str) -> Result<Pool, DbError> {
+    let options = database_url
+        .parse::<PgConnectOptions>()
+        .map_err(|e| DbError::ConnectionError(e.to_string()))?;
+
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .min_connections(1)
+        .acquire_timeout(Duration::from_secs(30))
+        .idle_timeout(Some(Duration::from_secs(600)))
+        .connect_with(options)
+        .await
+        .map_err(|e| DbError::ConnectionError(e.to_string()))?;
+
+    tracing::info!("Database connection pool created");
+
+    Ok(pool)
 }
 
+/// Runs all pending database migrations
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use meridian_db::{create_pool, run_migrations};
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let pool = create_pool("postgresql://user:pass@localhost/meridian").await?;
+/// run_migrations(&pool).await?;
+/// # Ok(())
+/// # }
+/// ```
+pub async fn run_migrations(pool: &Pool) -> Result<(), DbError> {
+    tracing::info!("Running database migrations...");
+
+    sqlx::migrate!("./migrations")
+        .run(pool)
+        .await
+        .map_err(|e| DbError::MigrationError(e.to_string()))?;
+
+    tracing::info!("✅ Migrations completed successfully");
+
+    Ok(())
+}
