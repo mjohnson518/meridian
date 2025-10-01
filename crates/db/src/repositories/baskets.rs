@@ -21,20 +21,20 @@ impl BasketRepository {
     pub async fn create(&self, basket: &CurrencyBasket) -> Result<Uuid, DbError> {
         let row = BasketRow::from_basket(basket)?;
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO baskets (id, name, basket_type, components, rebalance_strategy, last_rebalanced, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            "#,
-            row.id,
-            row.name,
-            row.basket_type,
-            row.components,
-            row.rebalance_strategy,
-            row.last_rebalanced,
-            row.created_at,
-            row.updated_at,
+            "#
         )
+        .bind(row.id)
+        .bind(&row.name)
+        .bind(&row.basket_type)
+        .bind(&row.components)
+        .bind(&row.rebalance_strategy)
+        .bind(row.last_rebalanced)
+        .bind(row.created_at)
+        .bind(row.updated_at)
         .execute(&self.pool)
         .await?;
 
@@ -45,15 +45,14 @@ impl BasketRepository {
 
     /// Retrieves a basket by ID
     pub async fn find_by_id(&self, id: Uuid) -> Result<CurrencyBasket, DbError> {
-        let row = sqlx::query_as!(
-            BasketRow,
+        let row = sqlx::query_as::<_, BasketRow>(
             r#"
             SELECT id, name, basket_type, components, rebalance_strategy, last_rebalanced, created_at, updated_at
             FROM baskets
             WHERE id = $1
-            "#,
-            id
+            "#
         )
+        .bind(id)
         .fetch_one(&self.pool)
         .await?;
 
@@ -62,17 +61,16 @@ impl BasketRepository {
 
     /// Lists all baskets with pagination
     pub async fn list(&self, limit: i64, offset: i64) -> Result<Vec<CurrencyBasket>, DbError> {
-        let rows = sqlx::query_as!(
-            BasketRow,
+        let rows = sqlx::query_as::<_, BasketRow>(
             r#"
             SELECT id, name, basket_type, components, rebalance_strategy, last_rebalanced, created_at, updated_at
             FROM baskets
             ORDER BY created_at DESC
             LIMIT $1 OFFSET $2
-            "#,
-            limit,
-            offset
+            "#
         )
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&self.pool)
         .await?;
 
@@ -83,23 +81,23 @@ impl BasketRepository {
 
     /// Counts total number of baskets
     pub async fn count(&self) -> Result<i64, DbError> {
-        let result = sqlx::query!("SELECT COUNT(*) as count FROM baskets")
+        let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM baskets")
             .fetch_one(&self.pool)
             .await?;
 
-        Ok(result.count.unwrap_or(0))
+        Ok(result.0)
     }
 
     /// Updates basket's last_rebalanced timestamp
     pub async fn mark_rebalanced(&self, id: Uuid) -> Result<(), DbError> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE baskets
             SET last_rebalanced = NOW(), updated_at = NOW()
             WHERE id = $1
-            "#,
-            id
+            "#
         )
+        .bind(id)
         .execute(&self.pool)
         .await?;
 
@@ -110,13 +108,13 @@ impl BasketRepository {
 
     /// Deletes a basket by ID
     pub async fn delete(&self, id: Uuid) -> Result<(), DbError> {
-        let result = sqlx::query!(
+        let result = sqlx::query(
             r#"
             DELETE FROM baskets
             WHERE id = $1
-            "#,
-            id
+            "#
         )
+        .bind(id)
         .execute(&self.pool)
         .await?;
 
@@ -135,18 +133,17 @@ impl BasketRepository {
         basket_type: &str,
         limit: i64,
     ) -> Result<Vec<CurrencyBasket>, DbError> {
-        let rows = sqlx::query_as!(
-            BasketRow,
+        let rows = sqlx::query_as::<_, BasketRow>(
             r#"
             SELECT id, name, basket_type, components, rebalance_strategy, last_rebalanced, created_at, updated_at
             FROM baskets
             WHERE basket_type = $1
             ORDER BY created_at DESC
             LIMIT $2
-            "#,
-            basket_type,
-            limit
+            "#
         )
+        .bind(basket_type)
+        .bind(limit)
         .fetch_all(&self.pool)
         .await?;
 
@@ -155,4 +152,3 @@ impl BasketRepository {
             .collect()
     }
 }
-

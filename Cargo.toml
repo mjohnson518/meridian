@@ -26,7 +26,7 @@ actix-cors = "0.7"
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json"] }
 
 # Financial precision
-rust_decimal = { version = "1.33", features = ["serde", "db-postgres"] }
+rust_decimal = { version = "1.38", features = ["serde", "db-tokio-postgres"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

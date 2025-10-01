@@ -19,18 +19,18 @@ impl PriceRepository {
 
     /// Inserts a new price record
     pub async fn insert(&self, request: InsertPriceRequest) -> Result<i64, DbError> {
-        let result = sqlx::query!(
+        let result: (i64,) = sqlx::query_as(
             r#"
             INSERT INTO price_history (currency_pair, price, source, is_stale, round_id)
             VALUES ($1, $2, $3, $4, $5)
             RETURNING id
-            "#,
-            request.currency_pair,
-            request.price,
-            request.source,
-            request.is_stale,
-            request.round_id,
+            "#
         )
+        .bind(&request.currency_pair)
+        .bind(request.price)
+        .bind(&request.source)
+        .bind(request.is_stale)
+        .bind(request.round_id)
         .fetch_one(&self.pool)
         .await?;
 
@@ -40,22 +40,21 @@ impl PriceRepository {
             "Price inserted into history"
         );
 
-        Ok(result.id)
+        Ok(result.0)
     }
 
     /// Gets the latest price for a currency pair
     pub async fn get_latest(&self, currency_pair: &str) -> Result<PriceHistoryRow, DbError> {
-        let row = sqlx::query_as!(
-            PriceHistoryRow,
+        let row = sqlx::query_as::<_, PriceHistoryRow>(
             r#"
             SELECT id, currency_pair, price, source, is_stale, round_id, timestamp
             FROM price_history
             WHERE currency_pair = $1
             ORDER BY timestamp DESC
             LIMIT 1
-            "#,
-            currency_pair
+            "#
         )
+        .bind(currency_pair)
         .fetch_one(&self.pool)
         .await?;
 
@@ -70,8 +69,7 @@ impl PriceRepository {
         end_time: DateTime<Utc>,
         limit: i64,
     ) -> Result<Vec<PriceHistoryRow>, DbError> {
-        let rows = sqlx::query_as!(
-            PriceHistoryRow,
+        let rows = sqlx::query_as::<_, PriceHistoryRow>(
             r#"
             SELECT id, currency_pair, price, source, is_stale, round_id, timestamp
             FROM price_history
@@ -80,12 +78,12 @@ impl PriceRepository {
                 AND timestamp <= $3
             ORDER BY timestamp DESC
             LIMIT $4
-            "#,
-            currency_pair,
-            start_time,
-            end_time,
-            limit
+            "#
         )
+        .bind(currency_pair)
+        .bind(start_time)
+        .bind(end_time)
+        .bind(limit)
         .fetch_all(&self.pool)
         .await?;
 
@@ -94,7 +92,7 @@ impl PriceRepository {
 
     /// Gets all unique currency pairs with price data
     pub async fn get_all_pairs(&self) -> Result<Vec<String>, DbError> {
-        let rows = sqlx::query!(
+        let rows: Vec<(String,)> = sqlx::query_as(
             r#"
             SELECT DISTINCT currency_pair
             FROM price_history
@@ -104,7 +102,7 @@ impl PriceRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| r.currency_pair).collect())
+        Ok(rows.into_iter().map(|r| r.0).collect())
     }
 
     /// Gets statistics for a currency pair
@@ -113,7 +111,7 @@ impl PriceRepository {
         currency_pair: &str,
         start_time: DateTime<Utc>,
     ) -> Result<PriceStats, DbError> {
-        let result = sqlx::query!(
+        let result = sqlx::query_as::<_, (Option<Decimal>, Option<Decimal>, Option<Decimal>, Option<i64>)>(
             r#"
             SELECT 
                 MIN(price) as min_price,
@@ -123,31 +121,31 @@ impl PriceRepository {
             FROM price_history
             WHERE currency_pair = $1
                 AND timestamp >= $2
-            "#,
-            currency_pair,
-            start_time
+            "#
         )
+        .bind(currency_pair)
+        .bind(start_time)
         .fetch_one(&self.pool)
         .await?;
 
         Ok(PriceStats {
             currency_pair: currency_pair.to_string(),
-            min_price: result.min_price.unwrap_or(Decimal::ZERO),
-            max_price: result.max_price.unwrap_or(Decimal::ZERO),
-            avg_price: result.avg_price.map(|d| Decimal::try_from(d).unwrap_or(Decimal::ZERO)).unwrap_or(Decimal::ZERO),
-            count: result.count.unwrap_or(0),
+            min_price: result.0.unwrap_or(Decimal::ZERO),
+            max_price: result.1.unwrap_or(Decimal::ZERO),
+            avg_price: result.2.unwrap_or(Decimal::ZERO),
+            count: result.3.unwrap_or(0),
         })
     }
 
     /// Deletes old price records (cleanup)
     pub async fn delete_older_than(&self, cutoff_time: DateTime<Utc>) -> Result<u64, DbError> {
-        let result = sqlx::query!(
+        let result = sqlx::query(
             r#"
             DELETE FROM price_history
             WHERE timestamp < $1
-            "#,
-            cutoff_time
+            "#
         )
+        .bind(cutoff_time)
         .execute(&self.pool)
         .await?;
 
@@ -167,4 +165,3 @@ pub struct PriceStats {
     pub avg_price: Decimal,
     pub count: i64,
 }
-

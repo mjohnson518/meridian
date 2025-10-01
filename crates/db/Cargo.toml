@@ -19,7 +19,7 @@ serde_json = { workspace = true }
 # Utilities
 uuid = { workspace = true }
 chrono = { workspace = true }
-rust_decimal = { workspace = true }
+rust_decimal = { workspace = true, features = ["db-tokio-postgres"] }
 
 # Error handling
 thiserror = { workspace = true }

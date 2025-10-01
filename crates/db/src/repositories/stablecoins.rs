@@ -21,17 +21,17 @@ impl StablecoinRepository {
     pub async fn create(&self, request: CreateStablecoinRequest) -> Result<Uuid, DbError> {
         let id = Uuid::new_v4();
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO stablecoins (id, name, symbol, basket_id, chain_id)
             VALUES ($1, $2, $3, $4, $5)
-            "#,
-            id,
-            request.name,
-            request.symbol,
-            request.basket_id,
-            request.chain_id,
+            "#
         )
+        .bind(id)
+        .bind(&request.name)
+        .bind(&request.symbol)
+        .bind(request.basket_id)
+        .bind(request.chain_id)
         .execute(&self.pool)
         .await?;
 
@@ -42,16 +42,15 @@ impl StablecoinRepository {
 
     /// Finds a stablecoin by ID
     pub async fn find_by_id(&self, id: Uuid) -> Result<StablecoinRow, DbError> {
-        let row = sqlx::query_as!(
-            StablecoinRow,
+        let row = sqlx::query_as::<_, StablecoinRow>(
             r#"
             SELECT id, name, symbol, contract_address, basket_id, chain_id, 
                    total_supply, total_reserve_value, status, deployed_at, created_at, updated_at
             FROM stablecoins
             WHERE id = $1
-            "#,
-            id
+            "#
         )
+        .bind(id)
         .fetch_one(&self.pool)
         .await?;
 
@@ -63,16 +62,15 @@ impl StablecoinRepository {
         &self,
         contract_address: &str,
     ) -> Result<StablecoinRow, DbError> {
-        let row = sqlx::query_as!(
-            StablecoinRow,
+        let row = sqlx::query_as::<_, StablecoinRow>(
             r#"
             SELECT id, name, symbol, contract_address, basket_id, chain_id,
                    total_supply, total_reserve_value, status, deployed_at, created_at, updated_at
             FROM stablecoins
             WHERE contract_address = $1
-            "#,
-            contract_address
+            "#
         )
+        .bind(contract_address)
         .fetch_one(&self.pool)
         .await?;
 
@@ -85,7 +83,7 @@ impl StablecoinRepository {
         id: Uuid,
         contract_address: &str,
     ) -> Result<(), DbError> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE stablecoins
             SET contract_address = $1, 
@@ -93,10 +91,10 @@ impl StablecoinRepository {
                 deployed_at = NOW(),
                 updated_at = NOW()
             WHERE id = $2
-            "#,
-            contract_address,
-            id
+            "#
         )
+        .bind(contract_address)
+        .bind(id)
         .execute(&self.pool)
         .await?;
 
@@ -116,18 +114,18 @@ impl StablecoinRepository {
         total_supply: Decimal,
         total_reserve_value: Decimal,
     ) -> Result<(), DbError> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE stablecoins
             SET total_supply = $1,
                 total_reserve_value = $2,
                 updated_at = NOW()
             WHERE id = $3
-            "#,
-            total_supply,
-            total_reserve_value,
-            id
+            "#
         )
+        .bind(total_supply)
+        .bind(total_reserve_value)
+        .bind(id)
         .execute(&self.pool)
         .await?;
 
@@ -136,15 +134,15 @@ impl StablecoinRepository {
 
     /// Updates stablecoin status
     pub async fn update_status(&self, id: Uuid, status: &str) -> Result<(), DbError> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE stablecoins
             SET status = $1, updated_at = NOW()
             WHERE id = $2
-            "#,
-            status,
-            id
+            "#
         )
+        .bind(status)
+        .bind(id)
         .execute(&self.pool)
         .await?;
 
@@ -155,18 +153,17 @@ impl StablecoinRepository {
 
     /// Lists all stablecoins with pagination
     pub async fn list(&self, limit: i64, offset: i64) -> Result<Vec<StablecoinRow>, DbError> {
-        let rows = sqlx::query_as!(
-            StablecoinRow,
+        let rows = sqlx::query_as::<_, StablecoinRow>(
             r#"
             SELECT id, name, symbol, contract_address, basket_id, chain_id,
                    total_supply, total_reserve_value, status, deployed_at, created_at, updated_at
             FROM stablecoins
             ORDER BY created_at DESC
             LIMIT $1 OFFSET $2
-            "#,
-            limit,
-            offset
+            "#
         )
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&self.pool)
         .await?;
 
@@ -179,8 +176,7 @@ impl StablecoinRepository {
         chain_id: i32,
         limit: i64,
     ) -> Result<Vec<StablecoinRow>, DbError> {
-        let rows = sqlx::query_as!(
-            StablecoinRow,
+        let rows = sqlx::query_as::<_, StablecoinRow>(
             r#"
             SELECT id, name, symbol, contract_address, basket_id, chain_id,
                    total_supply, total_reserve_value, status, deployed_at, created_at, updated_at
@@ -188,10 +184,10 @@ impl StablecoinRepository {
             WHERE chain_id = $1
             ORDER BY created_at DESC
             LIMIT $2
-            "#,
-            chain_id,
-            limit
+            "#
         )
+        .bind(chain_id)
+        .bind(limit)
         .fetch_all(&self.pool)
         .await?;
 
@@ -200,11 +196,10 @@ impl StablecoinRepository {
 
     /// Counts total number of stablecoins
     pub async fn count(&self) -> Result<i64, DbError> {
-        let result = sqlx::query!("SELECT COUNT(*) as count FROM stablecoins")
+        let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM stablecoins")
             .fetch_one(&self.pool)
             .await?;
 
-        Ok(result.count.unwrap_or(0))
+        Ok(result.0)
     }
 }
-
