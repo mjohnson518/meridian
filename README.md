@@ -15,13 +15,13 @@ Launch compliant stablecoins in **30 days** vs. 18 months DIY:
 ```
 meridian/
 ├── crates/
-│   ├── basket/           # ✅ Currency basket engine (COMPLETE)
-│   ├── oracle/           # ✅ Chainlink integration (COMPLETE)
-│   ├── api/              # 🚧 REST API server (Months 3-4)
-│   ├── db/               # 🚧 Database models (Month 3)
-│   └── compliance/       # 🚧 Compliance module (Month 5)
-├── contracts/            # 🚧 Solidity contracts (Months 2-3)
-└── dashboard/            # 🚧 Next.js frontend (Months 4-5)
+│   ├── basket/           # ✅ Currency basket engine
+│   ├── oracle/           # ✅ Chainlink integration
+│   ├── api/              # 🚧 REST API server
+│   ├── db/               # 🚧 Database models
+│   └── compliance/       # 🚧 Compliance module
+├── contracts/            # ✅ Solidity smart contracts
+└── dashboard/            # 🚧 Next.js frontend
 ```
 
 ## 📦 Components
@@ -115,16 +115,48 @@ println!("EUR/USD: ${}", price);
 - [ ] Multi-source aggregation (Band Protocol, Pyth)
 - [ ] Historical price caching in Redis
 
-### 3. Smart Contracts - Phase 1, Months 2-3
+### 3. Smart Contracts ✅ COMPLETE
 
-ERC-20 compatible stablecoins with multi-currency support.
+ERC-20 compatible stablecoins with multi-currency support using UUPS upgradeable proxy pattern.
 
-**Planned Contracts:**
-- `MeridianStablecoin.sol` - Main ERC-20 token with basket support
-- `MeridianFactory.sol` - Deployment factory for new stablecoins
-- `ReserveManager.sol` - Reserve tracking and attestation
+**Implemented Contracts:**
+- ✅ `MeridianStablecoin.sol` - Main ERC-20 token with basket support, role-based access control, compliance features
+- ✅ `MeridianFactory.sol` - Deployment factory for new stablecoin instances with registry management
 
-### 4. REST API - Phase 1, Months 3-4
+**Features:**
+- ✅ UUPS upgradeable proxy pattern
+- ✅ Role-based access control (MINTER, BURNER, PAUSER, UPGRADER)
+- ✅ Mint with 1:1 reserve verification
+- ✅ Burn with pro-rata reserve release
+- ✅ Blacklist/whitelist for compliance
+- ✅ Reserve attestation tracking
+- ✅ Emergency pause functionality
+- ✅ Support for SingleCurrency, IMF SDR, and CustomBasket types
+
+**Test Coverage:**
+- ✅ 45 comprehensive tests (30 stablecoin + 15 factory)
+- ✅ Minting and burning logic
+- ✅ Access control enforcement
+- ✅ Compliance features
+- ✅ Emergency mechanisms
+- ✅ Reserve calculations
+
+**Deployment:**
+```bash
+# Install dependencies
+cd contracts
+forge install OpenZeppelin/openzeppelin-contracts@v5.0.0
+forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v5.0.0
+
+# Build and test
+forge build
+forge test
+
+# Deploy to Sepolia
+forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --verify
+```
+
+### 4. REST API
 
 Backend API for web dashboard and customer integrations.
 
@@ -135,11 +167,11 @@ Backend API for web dashboard and customer integrations.
 - Oracle price queries
 - Compliance reporting
 
-### 5. Web Dashboard - Phase 1, Months 4-5
+### 5. Web Dashboard
 
 Customer-facing interface for managing stablecoins (Next.js).
 
-### 6. Compliance Module - Phase 1, Month 5
+### 6. Compliance Module
 
 Automated regulatory compliance for multiple jurisdictions.
 
@@ -197,16 +229,16 @@ cargo test --package meridian-basket test_imf_sdr_basket_valuation
 
 ## 📊 Development Status
 
-### Phase 1 Progress (6-Month Timeline)
+### Phase 1 Progress
 
-| Component | Status | Timeline |
-|-----------|--------|----------|
-| Basket Engine | ✅ Complete | Weeks 1-4 |
-| Chainlink Integration | ✅ Complete | Weeks 5-8 |
-| Smart Contracts | 🚧 Next Up | Weeks 7-12 |
-| REST API | 🚧 Planned | Weeks 9-16 |
-| Web Dashboard | 🚧 Planned | Weeks 13-20 |
-| Compliance Module | 🚧 Planned | Weeks 17-20 |
+| Component | Status |
+|-----------|--------|
+| Basket Engine | ✅ Complete |
+| Chainlink Integration | ✅ Complete |
+| Smart Contracts | ✅ Complete |
+| REST API | 🚧 Next Up |
+| Web Dashboard | 🚧 Planned |
+| Compliance Module | 🚧 Planned |
 
 ## 🧪 Code Quality Standards
 
