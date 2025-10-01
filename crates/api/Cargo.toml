@@ -5,12 +5,39 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "meridian-api"
+path = "src/main.rs"
+
 [dependencies]
+# Meridian crates
+meridian-basket = { path = "../basket" }
+meridian-oracle = { path = "../oracle" }
+
+# Web framework
 actix-web = { workspace = true }
 actix-cors = { workspace = true }
+
+# Async runtime
 tokio = { workspace = true }
+
+# Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+# Error handling
 thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+chrono = { workspace = true }
+rust_decimal = { workspace = true }
+
+[dev-dependencies]
+reqwest = { workspace = true }
 

@@ -156,16 +156,49 @@ forge test
 forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --verify
 ```
 
-### 4. REST API
+### 4. REST API ✅ COMPLETE
 
-Backend API for web dashboard and customer integrations.
+Backend API for web dashboard and customer integrations using Actix-web.
 
-**Planned Endpoints:**
-- Stablecoin creation and management
-- Basket configuration
-- Mint/burn operations
-- Oracle price queries
-- Compliance reporting
+**Implemented Endpoints:**
+
+**Basket Management:**
+- ✅ `POST /api/v1/baskets/single-currency` - Create single-currency basket
+- ✅ `POST /api/v1/baskets/imf-sdr` - Create IMF SDR basket
+- ✅ `POST /api/v1/baskets/custom` - Create custom basket
+- ✅ `GET /api/v1/baskets` - List all baskets
+- ✅ `GET /api/v1/baskets/{id}` - Get basket details
+- ✅ `GET /api/v1/baskets/{id}/value` - Calculate basket value
+
+**Oracle Operations:**
+- ✅ `GET /api/v1/oracle/prices` - Get all current prices
+- ✅ `GET /api/v1/oracle/prices/{pair}` - Get specific price
+- ✅ `POST /api/v1/oracle/prices/{pair}/update` - Update price from blockchain
+- ✅ `POST /api/v1/oracle/feeds` - Register new price feed
+
+**Features:**
+- ✅ CORS support for web clients
+- ✅ JSON request/response serialization
+- ✅ Comprehensive error handling with proper HTTP status codes
+- ✅ Health check endpoint
+- ✅ Structured logging
+- ✅ Thread-safe shared state
+
+**Test Coverage:**
+- ✅ 9 integration tests covering all endpoints
+- ✅ Error handling (404s, validation errors)
+- ✅ CORS headers
+
+**Usage:**
+```bash
+# Start server
+export MERIDIAN_API_PORT=8080
+export ETHEREUM_RPC_URL=https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
+cargo run --bin meridian-api
+
+# Test endpoint
+curl http://localhost:8080/health
+```
 
 ### 5. Web Dashboard
 
@@ -236,8 +269,8 @@ cargo test --package meridian-basket test_imf_sdr_basket_valuation
 | Basket Engine | ✅ Complete |
 | Chainlink Integration | ✅ Complete |
 | Smart Contracts | ✅ Complete |
-| REST API | 🚧 Next Up |
-| Web Dashboard | 🚧 Planned |
+| REST API | ✅ Complete |
+| Web Dashboard | 🚧 Next Up |
 | Compliance Module | 🚧 Planned |
 
 ## 🧪 Code Quality Standards
