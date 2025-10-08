@@ -116,9 +116,18 @@ async fn test_multiple_feeds() {
         .expect("Failed to register JPY/USD");
 
     // Update all feeds
-    let eur_price = oracle.update_price("EUR/USD").await.expect("EUR update failed");
-    let gbp_price = oracle.update_price("GBP/USD").await.expect("GBP update failed");
-    let jpy_price = oracle.update_price("JPY/USD").await.expect("JPY update failed");
+    let eur_price = oracle
+        .update_price("EUR/USD")
+        .await
+        .expect("EUR update failed");
+    let gbp_price = oracle
+        .update_price("GBP/USD")
+        .await
+        .expect("GBP update failed");
+    let jpy_price = oracle
+        .update_price("JPY/USD")
+        .await
+        .expect("JPY update failed");
 
     println!("EUR/USD: ${}", eur_price);
     println!("GBP/USD: ${}", gbp_price);
@@ -190,4 +199,3 @@ async fn test_feed_not_found() {
         other => panic!("Expected PriceFeedNotFound error, got: {:?}", other),
     }
 }
-

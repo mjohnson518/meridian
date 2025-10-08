@@ -90,9 +90,7 @@ pub enum RebalanceStrategy {
     /// No automatic rebalancing
     None,
     /// Fixed schedule (e.g., monthly)
-    Fixed {
-        interval_days: u32,
-    },
+    Fixed { interval_days: u32 },
     /// Rebalance when any component deviates beyond threshold
     ThresholdBased {
         /// Maximum deviation percentage (e.g., 5.0 means 5%)
@@ -273,10 +271,7 @@ impl CurrencyBasket {
     ///
     /// let basket = CurrencyBasket::new_imf_sdr("IMF SDR".to_string(), feeds).unwrap();
     /// ```
-    pub fn new_imf_sdr(
-        name: String,
-        feeds: HashMap<String, String>,
-    ) -> Result<Self, BasketError> {
+    pub fn new_imf_sdr(name: String, feeds: HashMap<String, String>) -> Result<Self, BasketError> {
         // IMF SDR weights as of 2024 (reviewed every 5 years)
         let sdr_weights = [
             ("USD", "43.38", "41.21", "45.55"),
@@ -295,15 +290,12 @@ impl CurrencyBasket {
 
             let component = CurrencyComponent::new(
                 code.to_string(),
-                Decimal::from_str_exact(target).map_err(|e| {
-                    BasketError::CalculationError(format!("Invalid weight: {}", e))
-                })?,
-                Decimal::from_str_exact(min).map_err(|e| {
-                    BasketError::CalculationError(format!("Invalid weight: {}", e))
-                })?,
-                Decimal::from_str_exact(max).map_err(|e| {
-                    BasketError::CalculationError(format!("Invalid weight: {}", e))
-                })?,
+                Decimal::from_str_exact(target)
+                    .map_err(|e| BasketError::CalculationError(format!("Invalid weight: {}", e)))?,
+                Decimal::from_str_exact(min)
+                    .map_err(|e| BasketError::CalculationError(format!("Invalid weight: {}", e)))?,
+                Decimal::from_str_exact(max)
+                    .map_err(|e| BasketError::CalculationError(format!("Invalid weight: {}", e)))?,
                 feed.clone(),
             )?;
 
@@ -434,7 +426,10 @@ impl CurrencyBasket {
     /// let value = basket.calculate_value(&prices).unwrap();
     /// assert_eq!(value, Decimal::new(108, 2));
     /// ```
-    pub fn calculate_value(&self, prices: &HashMap<String, Decimal>) -> Result<Decimal, BasketError> {
+    pub fn calculate_value(
+        &self,
+        prices: &HashMap<String, Decimal>,
+    ) -> Result<Decimal, BasketError> {
         let mut total_value = Decimal::ZERO;
         let hundred = Decimal::new(100, 0);
 
@@ -508,15 +503,16 @@ impl CurrencyBasket {
     ///
     /// let needs_rebalance = basket.needs_rebalancing(&prices).unwrap();
     /// ```
-    pub fn needs_rebalancing(&self, prices: &HashMap<String, Decimal>) -> Result<bool, BasketError> {
+    pub fn needs_rebalancing(
+        &self,
+        prices: &HashMap<String, Decimal>,
+    ) -> Result<bool, BasketError> {
         match &self.rebalance_strategy {
             RebalanceStrategy::None => Ok(false),
 
             RebalanceStrategy::Fixed { interval_days } => {
                 if let Some(last_rebalanced) = self.last_rebalanced {
-                    let elapsed = Utc::now()
-                        .signed_duration_since(last_rebalanced)
-                        .num_days();
+                    let elapsed = Utc::now().signed_duration_since(last_rebalanced).num_days();
                     Ok(elapsed >= *interval_days as i64)
                 } else {
                     // Never rebalanced, so rebalance now
@@ -532,11 +528,12 @@ impl CurrencyBasket {
 
                 // Check if any component is outside its bounds
                 for component in &self.components {
-                    let current_weight = current_weights
-                        .get(&component.currency_code)
-                        .ok_or_else(|| {
-                            BasketError::ComponentNotFound(component.currency_code.clone())
-                        })?;
+                    let current_weight =
+                        current_weights
+                            .get(&component.currency_code)
+                            .ok_or_else(|| {
+                                BasketError::ComponentNotFound(component.currency_code.clone())
+                            })?;
 
                     if !component.is_within_bounds(*current_weight) {
                         tracing::info!(
@@ -919,7 +916,10 @@ mod tests {
         prices.insert("USD".to_string(), Decimal::ONE);
 
         let needs_rebalance = basket.needs_rebalancing(&prices).unwrap();
-        assert!(!needs_rebalance, "Should not need rebalancing when balanced");
+        assert!(
+            !needs_rebalance,
+            "Should not need rebalancing when balanced"
+        );
     }
 
     #[test]
@@ -986,9 +986,9 @@ mod tests {
     fn test_invalid_weight_range() {
         let result = CurrencyComponent::new(
             "EUR".to_string(),
-            Decimal::new(50, 0),  // target
-            Decimal::new(60, 0),  // min > target (invalid!)
-            Decimal::new(70, 0),  // max
+            Decimal::new(50, 0), // target
+            Decimal::new(60, 0), // min > target (invalid!)
+            Decimal::new(70, 0), // max
             "0xb49f677943BC038e9857d61E7d053CaA2C1734C1".to_string(),
         );
 
@@ -1005,11 +1005,8 @@ mod tests {
 
     #[test]
     fn test_empty_basket() {
-        let result = CurrencyBasket::new_custom_basket(
-            "Empty".to_string(),
-            vec![],
-            RebalanceStrategy::None,
-        );
+        let result =
+            CurrencyBasket::new_custom_basket("Empty".to_string(), vec![], RebalanceStrategy::None);
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -1056,7 +1053,10 @@ mod tests {
 
         // Should need rebalancing when never rebalanced
         let needs_rebalance = basket_with_fixed.needs_rebalancing(&prices).unwrap();
-        assert!(needs_rebalance, "Should need rebalancing when never rebalanced");
+        assert!(
+            needs_rebalance,
+            "Should need rebalancing when never rebalanced"
+        );
 
         // Mark as rebalanced
         basket_with_fixed.mark_rebalanced();
@@ -1132,4 +1132,3 @@ mod tests {
         assert!(value > Decimal::ZERO);
     }
 }
-

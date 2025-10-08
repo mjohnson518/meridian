@@ -42,4 +42,3 @@ impl From<ethers::providers::ProviderError> for OracleError {
         OracleError::ProviderError(err.to_string())
     }
 }
-

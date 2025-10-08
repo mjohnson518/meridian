@@ -95,7 +95,7 @@ impl BasketRepository {
             UPDATE baskets
             SET last_rebalanced = NOW(), updated_at = NOW()
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(id)
         .execute(&self.pool)
@@ -112,7 +112,7 @@ impl BasketRepository {
             r#"
             DELETE FROM baskets
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(id)
         .execute(&self.pool)

@@ -67,14 +67,15 @@ impl BasketRow {
 // ============ Price History Models ============
 
 /// Database representation of a price record
+/// Note: price and round_id stored as TEXT due to SQLx-Decimal compatibility
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct PriceHistoryRow {
     pub id: i64,
     pub currency_pair: String,
-    pub price: Decimal,
+    pub price: String, // TEXT storage for Decimal
     pub source: String,
     pub is_stale: bool,
-    pub round_id: Option<Decimal>,
+    pub round_id: Option<String>, // TEXT storage for Decimal
     pub timestamp: DateTime<Utc>,
 }
 
@@ -91,6 +92,7 @@ pub struct InsertPriceRequest {
 // ============ Stablecoin Models ============
 
 /// Database representation of a stablecoin
+/// Note: total_supply and total_reserve_value stored as TEXT due to SQLx-Decimal compatibility
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct StablecoinRow {
     pub id: Uuid,
@@ -99,8 +101,8 @@ pub struct StablecoinRow {
     pub contract_address: Option<String>,
     pub basket_id: Option<Uuid>,
     pub chain_id: i32,
-    pub total_supply: Decimal,
-    pub total_reserve_value: Decimal,
+    pub total_supply: String,        // TEXT storage for Decimal
+    pub total_reserve_value: String, // TEXT storage for Decimal
     pub status: String,
     pub deployed_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
@@ -139,4 +141,3 @@ pub struct CreateAuditLogRequest {
     pub basket_id: Option<Uuid>,
     pub details: serde_json::Value,
 }
-

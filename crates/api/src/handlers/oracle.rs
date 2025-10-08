@@ -17,9 +17,7 @@ pub async fn get_prices(state: web::Data<Arc<AppState>>) -> Result<HttpResponse,
     tracing::debug!("Fetching all oracle prices");
 
     let oracle_guard = state.oracle.read().await;
-    let oracle = oracle_guard
-        .as_ref()
-        .ok_or(ApiError::OracleNotConfigured)?;
+    let oracle = oracle_guard.as_ref().ok_or(ApiError::OracleNotConfigured)?;
 
     // Get all registered feeds
     let feeds = oracle.list_feeds().await;
@@ -58,9 +56,7 @@ pub async fn get_price(
     tracing::debug!(pair = %pair, "Fetching price");
 
     let oracle_guard = state.oracle.read().await;
-    let oracle = oracle_guard
-        .as_ref()
-        .ok_or(ApiError::OracleNotConfigured)?;
+    let oracle = oracle_guard.as_ref().ok_or(ApiError::OracleNotConfigured)?;
 
     let feed = oracle.get_feed_info(&pair).await?;
 
@@ -86,9 +82,7 @@ pub async fn update_price(
     tracing::info!(pair = %pair, "Updating price from blockchain");
 
     let oracle_guard = state.oracle.read().await;
-    let oracle = oracle_guard
-        .as_ref()
-        .ok_or(ApiError::OracleNotConfigured)?;
+    let oracle = oracle_guard.as_ref().ok_or(ApiError::OracleNotConfigured)?;
 
     let price = oracle.update_price(&pair).await?;
 
@@ -118,9 +112,7 @@ pub async fn register_price_feed(
     );
 
     let oracle_guard = state.oracle.read().await;
-    let oracle = oracle_guard
-        .as_ref()
-        .ok_or(ApiError::OracleNotConfigured)?;
+    let oracle = oracle_guard.as_ref().ok_or(ApiError::OracleNotConfigured)?;
 
     let address = Address::from_str(&req.chainlink_address)
         .map_err(|e| ApiError::BadRequest(format!("Invalid address: {}", e)))?;
@@ -133,4 +125,3 @@ pub async fn register_price_feed(
         "address": req.chainlink_address
     })))
 }
-

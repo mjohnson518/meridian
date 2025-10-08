@@ -50,4 +50,3 @@ impl From<serde_json::Error> for DbError {
         DbError::SerializationError(err.to_string())
     }
 }
-

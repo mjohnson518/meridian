@@ -79,4 +79,3 @@ impl From<OracleError> for ApiError {
         ApiError::OracleError(err)
     }
 }
-

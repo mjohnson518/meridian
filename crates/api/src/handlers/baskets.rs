@@ -146,9 +146,7 @@ pub async fn get_basket_value(
 
     // Get oracle
     let oracle_guard = state.oracle.read().await;
-    let oracle = oracle_guard
-        .as_ref()
-        .ok_or(ApiError::OracleNotConfigured)?;
+    let oracle = oracle_guard.as_ref().ok_or(ApiError::OracleNotConfigured)?;
 
     // Fetch prices for all components
     let mut prices = HashMap::new();
@@ -171,4 +169,3 @@ pub async fn get_basket_value(
 
     Ok(HttpResponse::Ok().json(response))
 }
-

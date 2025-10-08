@@ -28,4 +28,3 @@ pub async fn health_check(state: web::Data<Arc<AppState>>) -> HttpResponse {
 
     HttpResponse::Ok().json(response)
 }
-

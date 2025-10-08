@@ -5,6 +5,7 @@ members = [
     "crates/oracle",
     "crates/api",
     "crates/db",
+    "crates/chains",
     "crates/compliance",
 ]
 

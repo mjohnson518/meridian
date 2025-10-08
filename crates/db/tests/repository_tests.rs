@@ -6,10 +6,9 @@
 //! Example:
 //! DATABASE_URL=postgresql://postgres:password@localhost/meridian_test cargo test
 
-use meridian_basket::{CurrencyBasket, CurrencyComponent, RebalanceStrategy};
+use meridian_basket::CurrencyBasket;
 use meridian_db::*;
 use rust_decimal::Decimal;
-use std::collections::HashMap;
 
 /// Helper to get database URL from environment
 fn get_database_url() -> Option<String> {
@@ -34,7 +33,9 @@ async fn test_create_and_find_basket() {
     };
 
     let pool = create_pool(&db_url).await.expect("Failed to create pool");
-    run_migrations(&pool).await.expect("Failed to run migrations");
+    run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
 
     let repo = BasketRepository::new(pool.clone());
 
@@ -46,7 +47,10 @@ async fn test_create_and_find_basket() {
     assert_eq!(created_id, basket_id);
 
     // Find basket
-    let found = repo.find_by_id(basket_id).await.expect("Failed to find basket");
+    let found = repo
+        .find_by_id(basket_id)
+        .await
+        .expect("Failed to find basket");
     assert_eq!(found.id, basket_id);
     assert_eq!(found.name, "Test EUR Basket");
 
@@ -62,7 +66,9 @@ async fn test_list_baskets_with_pagination() {
     };
 
     let pool = create_pool(&db_url).await.expect("Failed to create pool");
-    run_migrations(&pool).await.expect("Failed to run migrations");
+    run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
 
     let repo = BasketRepository::new(pool.clone());
 
@@ -70,8 +76,12 @@ async fn test_list_baskets_with_pagination() {
     let basket1 = create_test_basket();
     let basket2 = create_test_basket();
 
-    repo.create(&basket1).await.expect("Failed to create basket1");
-    repo.create(&basket2).await.expect("Failed to create basket2");
+    repo.create(&basket1)
+        .await
+        .expect("Failed to create basket1");
+    repo.create(&basket2)
+        .await
+        .expect("Failed to create basket2");
 
     // List baskets
     let baskets = repo.list(10, 0).await.expect("Failed to list baskets");
@@ -94,7 +104,9 @@ async fn test_insert_and_retrieve_price() {
     };
 
     let pool = create_pool(&db_url).await.expect("Failed to create pool");
-    run_migrations(&pool).await.expect("Failed to run migrations");
+    run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
 
     let repo = PriceRepository::new(pool);
 
@@ -117,7 +129,10 @@ async fn test_insert_and_retrieve_price() {
         .expect("Failed to get latest price");
 
     assert_eq!(latest.currency_pair, "EUR/USD");
-    assert_eq!(latest.price, Decimal::new(108, 2));
+    // Price is stored as TEXT, verify it converts back correctly
+    use meridian_db::text_to_decimal;
+    let price = text_to_decimal(&latest.price).expect("Failed to parse price");
+    assert_eq!(price, Decimal::new(108, 2));
     assert_eq!(latest.source, "chainlink");
 }
 
@@ -129,14 +144,19 @@ async fn test_price_statistics() {
     };
 
     let pool = create_pool(&db_url).await.expect("Failed to create pool");
-    run_migrations(&pool).await.expect("Failed to run migrations");
+    run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
 
-    let repo = PriceRepository::new(pool);
+    let repo = PriceRepository::new(pool.clone());
+
+    // Use unique currency pair for this test to avoid conflicts
+    let test_pair = format!("TEST-{}/USD", chrono::Utc::now().timestamp());
 
     // Insert multiple prices
     for price_val in [100, 105, 110, 95, 108] {
         let request = InsertPriceRequest {
-            currency_pair: "TEST/USD".to_string(),
+            currency_pair: test_pair.clone(),
             price: Decimal::new(price_val, 2),
             source: "chainlink".to_string(),
             is_stale: false,
@@ -148,7 +168,7 @@ async fn test_price_statistics() {
     // Get statistics
     let start_time = chrono::Utc::now() - chrono::Duration::hours(1);
     let stats = repo
-        .get_stats("TEST/USD", start_time)
+        .get_stats(&test_pair, start_time)
         .await
         .expect("Failed to get stats");
 
@@ -165,7 +185,9 @@ async fn test_create_stablecoin() {
     };
 
     let pool = create_pool(&db_url).await.expect("Failed to create pool");
-    run_migrations(&pool).await.expect("Failed to run migrations");
+    run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
 
     let repo = StablecoinRepository::new(pool);
 
@@ -177,7 +199,10 @@ async fn test_create_stablecoin() {
         chain_id: 11155111, // Sepolia
     };
 
-    let id = repo.create(request).await.expect("Failed to create stablecoin");
+    let id = repo
+        .create(request)
+        .await
+        .expect("Failed to create stablecoin");
 
     // Find stablecoin
     let stablecoin = repo.find_by_id(id).await.expect("Failed to find");
@@ -194,7 +219,9 @@ async fn test_audit_log_immutability() {
     };
 
     let pool = create_pool(&db_url).await.expect("Failed to create pool");
-    run_migrations(&pool).await.expect("Failed to run migrations");
+    run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
 
     let repo = AuditRepository::new(pool);
 
@@ -217,4 +244,3 @@ async fn test_audit_log_immutability() {
     let found = logs.iter().any(|log| log.id == log_id);
     assert!(found, "Audit log should be retrievable");
 }
-

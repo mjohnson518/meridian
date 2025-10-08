@@ -63,4 +63,3 @@ impl AppState {
         baskets.values().cloned().collect()
     }
 }
-

@@ -17,8 +17,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
     // Get RPC URL from environment
-    let rpc_url = std::env::var("ETHEREUM_RPC_URL")
-        .expect("ETHEREUM_RPC_URL environment variable not set");
+    let rpc_url =
+        std::env::var("ETHEREUM_RPC_URL").expect("ETHEREUM_RPC_URL environment variable not set");
 
     println!("🔗 Connecting to Ethereum mainnet...");
 
@@ -59,4 +59,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-

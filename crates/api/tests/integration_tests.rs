@@ -83,9 +83,7 @@ async fn test_list_baskets() {
     test::call_service(&app, req).await;
 
     // List baskets
-    let req = test::TestRequest::get()
-        .uri("/api/v1/baskets")
-        .to_request();
+    let req = test::TestRequest::get().uri("/api/v1/baskets").to_request();
     let resp = test::call_service(&app, req).await;
 
     assert!(resp.status().is_success());

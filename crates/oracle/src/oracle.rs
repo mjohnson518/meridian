@@ -156,21 +156,18 @@ impl ChainlinkOracle {
         );
 
         // Create contract instance
-        let aggregator =
-            ChainlinkAggregatorV3::new(address, Arc::clone(&self.provider));
+        let aggregator = ChainlinkAggregatorV3::new(address, Arc::clone(&self.provider));
 
         // Query contract metadata
-        let decimals = aggregator
-            .decimals()
-            .call()
-            .await
-            .map_err(|e| OracleError::ContractError(format!("Failed to get decimals: {}", e)))?;
+        let decimals =
+            aggregator.decimals().call().await.map_err(|e| {
+                OracleError::ContractError(format!("Failed to get decimals: {}", e))
+            })?;
 
-        let description = aggregator
-            .description()
-            .call()
-            .await
-            .map_err(|e| OracleError::ContractError(format!("Failed to get description: {}", e)))?;
+        let description =
+            aggregator.description().call().await.map_err(|e| {
+                OracleError::ContractError(format!("Failed to get description: {}", e))
+            })?;
 
         tracing::info!(
             pair = %pair,
@@ -268,19 +265,20 @@ impl ChainlinkOracle {
             let feed = feeds
                 .get(pair)
                 .ok_or_else(|| OracleError::PriceFeedNotFound(pair.to_string()))?;
-            (feed.address, feed.decimals, feed.latest_price, feed.is_stale)
+            (
+                feed.address,
+                feed.decimals,
+                feed.latest_price,
+                feed.is_stale,
+            )
         };
 
         // Create contract instance
-        let aggregator =
-            ChainlinkAggregatorV3::new(address, Arc::clone(&self.provider));
+        let aggregator = ChainlinkAggregatorV3::new(address, Arc::clone(&self.provider));
 
         // Query latest round data
-        let (round_id, answer, _started_at, updated_at, _answered_in_round) = aggregator
-            .latest_round_data()
-            .call()
-            .await
-            .map_err(|e| {
+        let (round_id, answer, _started_at, updated_at, _answered_in_round) =
+            aggregator.latest_round_data().call().await.map_err(|e| {
                 OracleError::ContractError(format!("Failed to get latest round data: {}", e))
             })?;
 
@@ -337,8 +335,8 @@ impl ChainlinkOracle {
         if let Some(feed) = feeds.get_mut(pair) {
             feed.latest_price = price;
             feed.latest_round = round_id.into();
-            feed.updated_at = DateTime::from_timestamp(updated_at.as_u64() as i64, 0)
-                .unwrap_or_else(Utc::now);
+            feed.updated_at =
+                DateTime::from_timestamp(updated_at.as_u64() as i64, 0).unwrap_or_else(Utc::now);
             feed.is_stale = is_stale;
 
             tracing::info!(
@@ -428,9 +426,7 @@ mod tests {
     #[test]
     fn test_chainlink_answer_conversion() {
         let oracle = ChainlinkOracle {
-            provider: Arc::new(
-                Provider::<Http>::try_from("http://localhost:8545").unwrap(),
-            ),
+            provider: Arc::new(Provider::<Http>::try_from("http://localhost:8545").unwrap()),
             price_feeds: Arc::new(RwLock::new(HashMap::new())),
             deviation_threshold: Decimal::new(10, 0),
             stale_threshold_seconds: 3600,
@@ -458,4 +454,3 @@ mod tests {
         assert!(result.is_err());
     }
 }
-

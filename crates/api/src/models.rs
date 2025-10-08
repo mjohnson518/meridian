@@ -46,12 +46,8 @@ pub struct ComponentRequest {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RebalanceStrategyRequest {
     None,
-    Fixed {
-        interval_days: u32,
-    },
-    ThresholdBased {
-        max_deviation_percent: Decimal,
-    },
+    Fixed { interval_days: u32 },
+    ThresholdBased { max_deviation_percent: Decimal },
 }
 
 impl From<RebalanceStrategyRequest> for RebalanceStrategy {
@@ -190,4 +186,3 @@ pub struct HealthResponse {
     pub oracle_enabled: bool,
     pub baskets_count: usize,
 }
-

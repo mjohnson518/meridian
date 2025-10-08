@@ -1,5 +1,6 @@
 //! Stablecoin repository
 
+use crate::decimal_helpers::decimal_to_text;
 use crate::error::DbError;
 use crate::models::{CreateStablecoinRequest, StablecoinRow};
 use crate::Pool;
@@ -25,7 +26,7 @@ impl StablecoinRepository {
             r#"
             INSERT INTO stablecoins (id, name, symbol, basket_id, chain_id)
             VALUES ($1, $2, $3, $4, $5)
-            "#
+            "#,
         )
         .bind(id)
         .bind(&request.name)
@@ -48,7 +49,7 @@ impl StablecoinRepository {
                    total_supply, total_reserve_value, status, deployed_at, created_at, updated_at
             FROM stablecoins
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(id)
         .fetch_one(&self.pool)
@@ -68,7 +69,7 @@ impl StablecoinRepository {
                    total_supply, total_reserve_value, status, deployed_at, created_at, updated_at
             FROM stablecoins
             WHERE contract_address = $1
-            "#
+            "#,
         )
         .bind(contract_address)
         .fetch_one(&self.pool)
@@ -91,7 +92,7 @@ impl StablecoinRepository {
                 deployed_at = NOW(),
                 updated_at = NOW()
             WHERE id = $2
-            "#
+            "#,
         )
         .bind(contract_address)
         .bind(id)
@@ -114,6 +115,10 @@ impl StablecoinRepository {
         total_supply: Decimal,
         total_reserve_value: Decimal,
     ) -> Result<(), DbError> {
+        // Convert Decimal to TEXT for storage
+        let supply_text = decimal_to_text(total_supply);
+        let reserve_text = decimal_to_text(total_reserve_value);
+
         sqlx::query(
             r#"
             UPDATE stablecoins
@@ -121,10 +126,10 @@ impl StablecoinRepository {
                 total_reserve_value = $2,
                 updated_at = NOW()
             WHERE id = $3
-            "#
+            "#,
         )
-        .bind(total_supply)
-        .bind(total_reserve_value)
+        .bind(&supply_text)
+        .bind(&reserve_text)
         .bind(id)
         .execute(&self.pool)
         .await?;
@@ -139,7 +144,7 @@ impl StablecoinRepository {
             UPDATE stablecoins
             SET status = $1, updated_at = NOW()
             WHERE id = $2
-            "#
+            "#,
         )
         .bind(status)
         .bind(id)
@@ -160,7 +165,7 @@ impl StablecoinRepository {
             FROM stablecoins
             ORDER BY created_at DESC
             LIMIT $1 OFFSET $2
-            "#
+            "#,
         )
         .bind(limit)
         .bind(offset)
@@ -184,7 +189,7 @@ impl StablecoinRepository {
             WHERE chain_id = $1
             ORDER BY created_at DESC
             LIMIT $2
-            "#
+            "#,
         )
         .bind(chain_id)
         .bind(limit)

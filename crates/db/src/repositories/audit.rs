@@ -24,7 +24,7 @@ impl AuditRepository {
             INSERT INTO audit_logs (operation, actor, stablecoin_id, basket_id, details)
             VALUES ($1, $2, $3, $4, $5)
             RETURNING id
-            "#
+            "#,
         )
         .bind(&request.operation)
         .bind(&request.actor)
@@ -56,7 +56,7 @@ impl AuditRepository {
             WHERE stablecoin_id = $1
             ORDER BY timestamp DESC
             LIMIT $2
-            "#
+            "#,
         )
         .bind(stablecoin_id)
         .bind(limit)
@@ -79,7 +79,7 @@ impl AuditRepository {
             WHERE basket_id = $1
             ORDER BY timestamp DESC
             LIMIT $2
-            "#
+            "#,
         )
         .bind(basket_id)
         .bind(limit)
@@ -97,7 +97,7 @@ impl AuditRepository {
             FROM audit_logs
             ORDER BY timestamp DESC
             LIMIT $1
-            "#
+            "#,
         )
         .bind(limit)
         .fetch_all(&self.pool)
@@ -120,7 +120,7 @@ impl AuditRepository {
             WHERE operation = $1 AND timestamp >= $2
             ORDER BY timestamp DESC
             LIMIT $3
-            "#
+            "#,
         )
         .bind(operation)
         .bind(start_time)

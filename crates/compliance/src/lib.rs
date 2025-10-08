@@ -7,4 +7,3 @@
 pub fn placeholder() {
     // Compliance implementation coming soon
 }
-

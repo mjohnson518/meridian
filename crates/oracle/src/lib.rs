@@ -30,9 +30,9 @@
 //! ```
 
 mod error;
-mod oracle;
 mod feeds;
+mod oracle;
 
 pub use error::OracleError;
-pub use oracle::{ChainlinkOracle, PriceFeed, PriceFeedConfig};
 pub use feeds::mainnet_feeds;
+pub use oracle::{ChainlinkOracle, PriceFeed, PriceFeedConfig};
