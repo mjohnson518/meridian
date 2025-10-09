@@ -13,6 +13,7 @@ path = "src/main.rs"
 # Meridian crates
 meridian-basket = { path = "../basket" }
 meridian-oracle = { path = "../oracle" }
+meridian-db = { path = "../db" }
 
 # Web framework
 actix-web = { workspace = true }
@@ -40,6 +41,9 @@ tracing-subscriber = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 rust_decimal = { workspace = true }
+
+# Database
+sqlx = { workspace = true }
 
 [dev-dependencies]
 reqwest = { workspace = true }

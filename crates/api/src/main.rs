@@ -10,6 +10,7 @@ mod state;
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer};
+use meridian_db::{create_pool, run_migrations};
 use state::AppState;
 use std::sync::Arc;
 
@@ -18,7 +19,7 @@ async fn main() -> std::io::Result<()> {
     // Initialize logging
     tracing_subscriber::fmt::init();
 
-    tracing::info!("🚀 Starting Meridian API server...");
+    tracing::info!("Starting Meridian API server...");
 
     // Get configuration from environment
     let host = std::env::var("MERIDIAN_API_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
@@ -27,11 +28,28 @@ async fn main() -> std::io::Result<()> {
         .parse::<u16>()
         .expect("Invalid port number");
 
-    // Initialize shared application state
-    let app_state = Arc::new(AppState::new().await);
+    // Get database URL from environment
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    tracing::info!("✅ Application state initialized");
-    tracing::info!("🌐 Server starting at http://{}:{}", host, port);
+    // Initialize database connection pool
+    tracing::info!("Connecting to database...");
+    let db_pool = create_pool(&database_url)
+        .await
+        .expect("Failed to create database pool");
+
+    // Run database migrations
+    tracing::info!("Running database migrations...");
+    run_migrations(&db_pool)
+        .await
+        .expect("Failed to run migrations");
+
+    tracing::info!("Database initialized");
+
+    // Initialize shared application state
+    let app_state = Arc::new(AppState::new(db_pool).await);
+
+    tracing::info!("Application state initialized");
+    tracing::info!("Server starting at http://{}:{}", host, port);
 
     // Start HTTP server
     HttpServer::new(move || {

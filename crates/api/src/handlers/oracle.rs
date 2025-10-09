@@ -6,6 +6,8 @@ use crate::state::AppState;
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use ethers::types::Address;
+use meridian_db::{InsertPriceRequest, PriceRepository};
+use rust_decimal::Decimal;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -87,6 +89,28 @@ pub async fn update_price(
     let price = oracle.update_price(&pair).await?;
 
     let feed = oracle.get_feed_info(&pair).await?;
+
+    // Persist price to database
+    let price_repo = PriceRepository::new((*state.db_pool).clone());
+    
+    // Convert round_id safely - skip if conversion would overflow
+    let round_id = if feed.latest_round.bits() <= 64 {
+        Some(Decimal::from(feed.latest_round.as_u64()))
+    } else {
+        tracing::warn!(pair = %pair, "Round ID too large for Decimal, skipping");
+        None
+    };
+    
+    let insert_request = InsertPriceRequest {
+        currency_pair: pair.clone(),
+        price,
+        source: "chainlink".to_string(),
+        is_stale: feed.is_stale,
+        round_id,
+    };
+    price_repo.insert(insert_request).await?;
+
+    tracing::info!(pair = %pair, price = %price, "Price updated and persisted to database");
 
     let response = PriceResponse {
         pair: feed.pair,

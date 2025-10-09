@@ -6,6 +6,7 @@ use crate::state::AppState;
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use meridian_basket::{CurrencyBasket, CurrencyComponent};
+use meridian_db::BasketRepository;
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -29,9 +30,13 @@ pub async fn create_single_currency_basket(
         req.chainlink_feed.clone(),
     )?;
 
+    // Persist basket to database
+    let basket_repo = BasketRepository::new((*state.db_pool).clone());
+    basket_repo.create(&basket).await?;
+
     let id = state.add_basket(basket.clone()).await;
 
-    tracing::info!(id = %id, "Basket created successfully");
+    tracing::info!(id = %id, "Basket created and persisted to database");
 
     Ok(HttpResponse::Created().json(BasketResponse::from(basket)))
 }
@@ -47,9 +52,13 @@ pub async fn create_imf_sdr_basket(
 
     let basket = CurrencyBasket::new_imf_sdr(req.name.clone(), req.chainlink_feeds.clone())?;
 
+    // Persist basket to database
+    let basket_repo = BasketRepository::new((*state.db_pool).clone());
+    basket_repo.create(&basket).await?;
+
     let id = state.add_basket(basket.clone()).await;
 
-    tracing::info!(id = %id, "IMF SDR basket created successfully");
+    tracing::info!(id = %id, "IMF SDR basket created and persisted to database");
 
     Ok(HttpResponse::Created().json(BasketResponse::from(basket)))
 }
@@ -90,9 +99,13 @@ pub async fn create_custom_basket(
         req.rebalance_strategy.clone().into(),
     )?;
 
+    // Persist basket to database
+    let basket_repo = BasketRepository::new((*state.db_pool).clone());
+    basket_repo.create(&basket).await?;
+
     let id = state.add_basket(basket.clone()).await;
 
-    tracing::info!(id = %id, "Custom basket created successfully");
+    tracing::info!(id = %id, "Custom basket created and persisted to database");
 
     Ok(HttpResponse::Created().json(BasketResponse::from(basket)))
 }

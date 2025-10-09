@@ -2,6 +2,7 @@
 
 use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use meridian_basket::BasketError;
+use meridian_db::DbError;
 use meridian_oracle::OracleError;
 use serde::Serialize;
 use std::fmt;
@@ -21,6 +22,7 @@ pub struct ErrorResponse {
 pub enum ApiError {
     BasketError(BasketError),
     OracleError(OracleError),
+    DatabaseError(DbError),
     NotFound(String),
     BadRequest(String),
     OracleNotConfigured,
@@ -32,6 +34,7 @@ impl fmt::Display for ApiError {
         match self {
             ApiError::BasketError(e) => write!(f, "Basket error: {}", e),
             ApiError::OracleError(e) => write!(f, "Oracle error: {}", e),
+            ApiError::DatabaseError(e) => write!(f, "Database error: {}", e),
             ApiError::NotFound(msg) => write!(f, "Not found: {}", msg),
             ApiError::BadRequest(msg) => write!(f, "Bad request: {}", msg),
             ApiError::OracleNotConfigured => write!(f, "Oracle not configured"),
@@ -54,6 +57,7 @@ impl ResponseError for ApiError {
         let error_type = match self {
             ApiError::BasketError(_) => "basket_error",
             ApiError::OracleError(_) => "oracle_error",
+            ApiError::DatabaseError(_) => "database_error",
             ApiError::NotFound(_) => "not_found",
             ApiError::BadRequest(_) => "bad_request",
             ApiError::OracleNotConfigured => "oracle_not_configured",
@@ -77,5 +81,11 @@ impl From<BasketError> for ApiError {
 impl From<OracleError> for ApiError {
     fn from(err: OracleError) -> Self {
         ApiError::OracleError(err)
+    }
+}
+
+impl From<DbError> for ApiError {
+    fn from(err: DbError) -> Self {
+        ApiError::DatabaseError(err)
     }
 }
