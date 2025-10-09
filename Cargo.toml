@@ -24,7 +24,7 @@ actix-web = "4.4"
 actix-cors = "0.7"
 
 # Database
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json"] }
+sqlx = { version = "0.8.2", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json"] }
 
 # Financial precision
 rust_decimal = { version = "1.38", features = ["serde", "db-tokio-postgres"] }
