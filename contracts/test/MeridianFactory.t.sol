@@ -281,10 +281,11 @@ contract MeridianFactoryTest is Test {
 
         MeridianStablecoin stablecoin = MeridianStablecoin(stablecoinAddr);
 
-        // Grant minter role
+        // Grant minter role (use startPrank for proxy calls)
         address minter = address(0x10);
-        vm.prank(admin);
+        vm.startPrank(admin);
         stablecoin.grantRole(stablecoin.MINTER_ROLE(), minter);
+        vm.stopPrank();
 
         // Mint tokens
         address recipient = address(0x20);
@@ -296,8 +297,9 @@ contract MeridianFactoryTest is Test {
             nonce: 0
         });
 
-        vm.prank(minter);
+        vm.startPrank(minter);
         stablecoin.mint(request);
+        vm.stopPrank();
 
         assertEq(stablecoin.balanceOf(recipient), 1000 ether);
     }

@@ -385,17 +385,17 @@ contract MeridianStablecoin is
     // ============ Transfer Overrides ============
 
     /**
-     * @notice Hook that is called before any transfer of tokens
+     * @notice Hook that is called on any transfer of tokens (including mint and burn)
      * @dev Enforces pause and blacklist checks
      */
-    function _beforeTokenTransfer(
+    function _update(
         address from,
         address to,
         uint256 amount
     ) internal virtual override whenNotPaused {
         if (isBlacklisted[from]) revert SenderBlacklisted();
         if (isBlacklisted[to]) revert RecipientBlacklisted();
-        super._beforeTokenTransfer(from, to, amount);
+        super._update(from, to, amount);
     }
 
     // ============ View Functions ============

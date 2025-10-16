@@ -85,7 +85,7 @@ contract MeridianFactory is Ownable {
      * @notice Deploy the factory with an initial implementation
      * @param implementation_ Address of the MeridianStablecoin implementation
      */
-    constructor(address implementation_) {
+    constructor(address implementation_) Ownable(msg.sender) {
         if (implementation_ == address(0)) revert InvalidImplementation();
         implementation = implementation_;
     }
