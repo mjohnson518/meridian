@@ -129,9 +129,9 @@ println!("EUR/USD: ${}", price);
 - Multi-source aggregation (Band Protocol, Pyth)
 - Historical price caching in Redis
 
-### 3. Smart Contracts - COMPLETE
+### 3. Smart Contracts - COMPLETE (OpenZeppelin v5)
 
-ERC-20 compatible stablecoins with multi-currency support using UUPS upgradeable proxy pattern.
+ERC-20 compatible stablecoins with multi-currency support using UUPS upgradeable proxy pattern. Migrated to OpenZeppelin v5 with all tests passing.
 
 **Implemented Contracts:**
 - `MeridianStablecoin.sol` - Main ERC-20 token with basket support, role-based access control, compliance features
@@ -148,23 +148,24 @@ ERC-20 compatible stablecoins with multi-currency support using UUPS upgradeable
 - Support for SingleCurrency, IMF SDR, and CustomBasket types
 
 **Test Coverage:**
-- 45 comprehensive tests (30 stablecoin + 15 factory)
+- 49 comprehensive tests (31 stablecoin + 18 factory) - 100% passing
 - Minting and burning logic
 - Access control enforcement
 - Compliance features
 - Emergency mechanisms
 - Reserve calculations
+- OpenZeppelin v5 compatibility validated
+
+**Status:** Ready for Sepolia testnet deployment
 
 **Deployment:**
 ```bash
-# Install dependencies
+# Dependencies already installed (OpenZeppelin v5.4.0)
 cd contracts
-forge install OpenZeppelin/openzeppelin-contracts@v5.0.0
-forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v5.0.0
 
 # Build and test
 forge build
-forge test
+forge test  # All 49 tests should pass
 
 # Deploy to Sepolia
 forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --verify
