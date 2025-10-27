@@ -1,0 +1,316 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import Sacred Design Tokens */
+@import '../styles/sacred-tokens.css';
+
+/* Sacred Base Styles */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: var(--sacred-black);
+    background-color: var(--sacred-white);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* Sacred Typography */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+  }
+
+  h2 {
+    font-size: 2rem;
+  }
+
+  h3 {
+    font-size: 1.5rem;
+  }
+
+  h4 {
+    font-size: 1.25rem;
+  }
+
+  h5 {
+    font-size: 1rem;
+  }
+
+  h6 {
+    font-size: 0.875rem;
+  }
+
+  /* Monospace for financial data */
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  /* Sacred Links */
+  a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 0.1em;
+    transition: opacity var(--transition-fast);
+  }
+
+  a:hover {
+    opacity: 0.7;
+  }
+
+  /* Sacred Code */
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    padding: 0.125rem 0.25rem;
+    background-color: var(--sacred-gray-100);
+    border-radius: var(--radius-sm);
+  }
+
+  pre {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    padding: var(--space-2);
+    background-color: var(--sacred-gray-100);
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+  }
+
+  /* Sacred Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th {
+    font-weight: 500;
+    text-align: left;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: var(--space-1) var(--space-2);
+    border-bottom: 1px solid var(--sacred-gray-200);
+  }
+
+  td {
+    padding: var(--space-1) var(--space-2);
+    border-bottom: 1px solid var(--sacred-gray-100);
+  }
+
+  /* Sacred Buttons */
+  button {
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Sacred Forms */
+  input, select, textarea {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  input[type="number"] {
+    font-family: var(--font-mono);
+  }
+
+  /* Remove spinner from number inputs */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer components {
+  /* Sacred Card Component */
+  .sacred-card {
+    background: var(--sacred-white);
+    border: 1px solid var(--sacred-gray-200);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+  }
+
+  /* Sacred Button Component */
+  .sacred-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-1) var(--space-3);
+    font-weight: 500;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background-color: var(--sacred-black);
+    color: var(--sacred-white);
+    border: 1px solid var(--sacred-black);
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+  }
+
+  .sacred-button:hover {
+    background-color: var(--sacred-gray-800);
+    border-color: var(--sacred-gray-800);
+  }
+
+  .sacred-button-outline {
+    background-color: transparent;
+    color: var(--sacred-black);
+  }
+
+  .sacred-button-outline:hover {
+    background-color: var(--sacred-black);
+    color: var(--sacred-white);
+  }
+
+  /* Sacred Input Component */
+  .sacred-input {
+    width: 100%;
+    padding: var(--space-1) var(--space-2);
+    background-color: var(--sacred-white);
+    border: 1px solid var(--sacred-gray-300);
+    border-radius: var(--radius-sm);
+    transition: border-color var(--transition-fast);
+  }
+
+  .sacred-input:focus {
+    outline: none;
+    border-color: var(--sacred-black);
+  }
+
+  /* Sacred Terminal */
+  .sacred-terminal {
+    background-color: var(--sacred-black);
+    color: var(--sacred-white);
+    font-family: var(--font-mono);
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    min-height: 300px;
+  }
+
+  /* Sacred Grid */
+  .sacred-grid {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  /* Financial Display Classes */
+  .currency-display {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .percentage-display {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .positive {
+    color: #059669; /* Emerald 600 */
+  }
+
+  .negative {
+    color: #DC2626; /* Red 600 */
+  }
+
+  .warning {
+    color: #D97706; /* Amber 600 */
+  }
+}
+
+@layer utilities {
+  /* Sacred Utilities */
+  .sacred-container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 var(--space-4);
+  }
+
+  .sacred-prose {
+    max-width: 65ch;
+  }
+
+  /* Text utilities */
+  .text-mono {
+    font-family: var(--font-mono);
+  }
+
+  .uppercase {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Animation utilities */
+  .sacred-transition {
+    transition: all var(--transition-base);
+  }
+
+  .sacred-transition-fast {
+    transition: all var(--transition-fast);
+  }
+
+  /* Loading states */
+  @keyframes sacred-pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .sacred-loading {
+    animation: sacred-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Scrollbar styling */
+  .sacred-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .sacred-scrollbar::-webkit-scrollbar-track {
+    background: var(--sacred-gray-100);
+  }
+
+  .sacred-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--sacred-gray-400);
+    border-radius: 3px;
+  }
+
+  .sacred-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--sacred-gray-500);
+  }
+}

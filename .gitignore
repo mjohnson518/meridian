@@ -33,9 +33,21 @@ build/
 node_modules/
 .next/
 out/
+.env.local
+.env.production
 
 # Contracts
 contracts/cache/
 contracts/artifacts/
 contracts/out/
+
+# Internal/Sensitive Documentation
+OPERATIONAL_ROADMAP.md
+START_BACKEND.md
+*_AUDIT.md
+*_SECURITY.md
+DEPLOYMENT*.md
+*_CHECKLIST.md
+VALIDATION*.md
+*IMPLEMENTATION*.md
 
