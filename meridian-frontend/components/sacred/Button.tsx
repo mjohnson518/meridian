@@ -21,11 +21,11 @@ export const SacredButton = forwardRef<HTMLButtonElement, ButtonProps>(
     children,
     ...props 
   }, ref) => {
-    const variants = {
-      primary: 'bg-sacred-black text-sacred-white hover:bg-sacred-gray-800 border-sacred-black',
-      outline: 'bg-transparent text-sacred-black hover:bg-sacred-black hover:text-sacred-white border-sacred-black',
-      ghost: 'bg-transparent text-sacred-black hover:bg-sacred-gray-100 border-transparent',
-    };
+      const variants = {
+        primary: 'bg-gray-900 dark:bg-emerald-600 text-white hover:bg-gray-800 dark:hover:bg-emerald-500 border-gray-900 dark:border-emerald-600 shadow-sm hover:shadow-md',
+        outline: 'bg-transparent text-gray-900 dark:text-gray-100 hover:bg-gray-900 dark:hover:bg-emerald-600 hover:text-white border-gray-900 dark:border-gray-700',
+        ghost: 'bg-transparent text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 border-transparent',
+      };
 
     const sizes = {
       sm: 'px-3 py-1 text-xs',

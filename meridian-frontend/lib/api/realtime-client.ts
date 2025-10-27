@@ -53,7 +53,8 @@ export function connectWebSocket() {
     };
 
     socket.onerror = (error) => {
-      console.error('[WS] Error:', error);
+      console.warn('[WS] Connection error (backend may not have WebSocket support yet)');
+      // Don't throw - gracefully degrade to polling
     };
 
     socket.onclose = () => {

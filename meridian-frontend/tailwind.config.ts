@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: 'class',
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -23,7 +24,20 @@ const config: Config = {
             800: '#262626',
             900: '#171717',
           }
-        }
+        },
+        dark: {
+          bg: '#0A0A0B',
+          surface: '#141416',
+          elevated: '#1A1A1D',
+          border: '#27272A',
+          text: '#FAFAFA',
+          muted: '#A1A1AA',
+        },
+        brand: {
+          emerald: '#10B981',
+          amber: '#F59E0B',
+          blue: '#3B82F6',
+        },
       },
       fontFamily: {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', 'sans-serif'],
@@ -42,11 +56,36 @@ const config: Config = {
       },
       animation: {
         'sacred-pulse': 'sacred-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'fade-in': 'fadeIn 0.5s ease-in-out',
+        'slide-up': 'slideUp 0.4s ease-out',
+        'shimmer': 'shimmer 2s linear infinite',
+        'gradient': 'gradient 15s ease infinite',
+        'count-up': 'countUp 1s ease-out',
       },
       keyframes: {
         'sacred-pulse': {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.5' },
+        },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        slideUp: {
+          '0%': { transform: 'translateY(20px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-1000px 0' },
+          '100%': { backgroundPosition: '1000px 0' },
+        },
+        gradient: {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+        },
+        countUp: {
+          '0%': { transform: 'scale(0.95)', opacity: '0.5' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
         },
       },
     },
