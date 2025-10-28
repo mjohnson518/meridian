@@ -55,7 +55,7 @@ export const MetricDisplay = ({
       case 'compact':
         return (
           <span className="font-mono text-xl tabular-nums">
-            {formatCompactNumber(value)}
+            {formatCompactNumber(typeof value === 'number' || typeof value === 'string' ? value : 0)}
           </span>
         );
       case 'timeago':
