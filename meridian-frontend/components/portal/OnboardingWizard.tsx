@@ -461,7 +461,8 @@ function ComplianceStep({ onNext, onBack, data }: StepProps) {
   };
 
   const removeOwner = (index: number) => {
-    setOwners(owners.filter((_owner, i) => i !== index));
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    setOwners(owners.filter((_, i) => i !== index));
   };
 
   return (
