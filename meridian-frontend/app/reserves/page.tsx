@@ -93,11 +93,11 @@ export default function ReservesPage() {
 
   if (loading || attestationLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] dark:bg-[#0A0A0B]">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-sacred-black"></div>
-          <p className="mt-4 font-mono text-sm text-sacred-gray-600">
-            Connecting to backend...
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100"></div>
+          <p className="mt-4 font-mono text-sm text-gray-600 dark:text-gray-400">
+            Loading reserve data...
           </p>
         </div>
       </div>
@@ -106,15 +106,18 @@ export default function ReservesPage() {
 
   if (error && !reserves) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="font-mono text-sm text-red-600 mb-4">Error: {error}</p>
-          <p className="font-mono text-xs text-sacred-gray-600 mb-4">
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] dark:bg-[#0A0A0B]">
+        <div className="text-center max-w-md">
+          <p className="font-mono text-sm text-red-600 dark:text-red-400 mb-4">Error: {error}</p>
+          <p className="font-mono text-xs text-gray-600 dark:text-gray-400 mb-6">
             Using mock data. Backend may not be available.
           </p>
-          <SacredButton onClick={refetch} variant="outline">
+          <button 
+            onClick={refetch}
+            className="px-4 py-2 text-sm font-medium bg-transparent text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg transition-all duration-200"
+          >
             Retry Connection
-          </SacredButton>
+          </button>
         </div>
       </div>
     );
@@ -125,58 +128,60 @@ export default function ReservesPage() {
   }
 
   return (
-    <div className="sacred-container py-8">
-      {/* Connection Status Bar */}
-      <div className="mb-4 flex items-center justify-between p-2 bg-sacred-gray-100 rounded">
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-600 animate-pulse' : reconnecting ? 'bg-amber-600' : 'bg-red-600'}`} />
-            <span className="font-mono text-xs uppercase">
-              {connected ? 'Live' : reconnecting ? 'Reconnecting...' : 'Offline'}
+    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A0B]">
+      <div className="max-w-[1200px] mx-auto px-8 py-12">
+        {/* Connection Status Bar */}
+        <div className="mb-8 flex items-center justify-between p-4 bg-white dark:bg-[#141416] border border-gray-200 dark:border-gray-800 rounded-xl">
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500 animate-pulse' : reconnecting ? 'bg-amber-500' : 'bg-red-500'}`} />
+              <span className="font-mono text-xs font-medium text-gray-900 dark:text-gray-100">
+                {connected ? 'Live' : reconnecting ? 'Reconnecting...' : 'Offline'}
+              </span>
+            </div>
+            <span className="font-mono text-xs text-gray-600 dark:text-gray-400">
+              {lastUpdate.toLocaleTimeString()}
             </span>
+            {eurPrice && (
+              <span className="font-mono text-xs text-gray-600 dark:text-gray-400">
+                EUR/USD: ${eurPrice}
+              </span>
+            )}
           </div>
-          <span className="font-mono text-xs text-sacred-gray-600">
-            Last update: {lastUpdate.toLocaleTimeString()}
-          </span>
-          {eurPrice && (
-            <span className="font-mono text-xs text-sacred-gray-600">
-              EUR/USD: ${eurPrice}
-            </span>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleUpdatePrice}
+              disabled={updating}
+              className="px-3 py-1.5 text-xs font-medium bg-transparent text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg transition-all duration-200 disabled:opacity-50"
+            >
+              {updating ? 'Updating...' : 'Update Prices'}
+            </button>
+            <button
+              onClick={refetch}
+              className="px-3 py-1.5 text-xs font-medium bg-transparent text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg transition-all duration-200"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Header */}
+        <div className="mb-12">
+          <h1 className="text-4xl md:text-5xl font-medium mb-4 text-gray-900 dark:text-gray-100 tracking-tight">
+            Reserve Dashboard
+          </h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400 font-light">
+            Real-time view of Meridian stablecoin reserves and attestation status
+          </p>
+          {error && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 font-mono mt-3 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-lg inline-block">
+              Note: Backend connection issue. Showing cached data.
+            </p>
           )}
         </div>
-        <div className="flex items-center space-x-2">
-          <SacredButton
-            onClick={handleUpdatePrice}
-            size="sm"
-            variant="outline"
-            loading={updating}
-            disabled={updating}
-          >
-            {updating ? 'Updating...' : 'Update Prices'}
-          </SacredButton>
-          <SacredButton onClick={refetch} size="sm" variant="outline">
-            Refresh
-          </SacredButton>
-        </div>
-      </div>
 
-      {/* Header */}
-      <div className="mb-8">
-        <Heading level={1} className="text-3xl mb-2">
-          Reserve Dashboard
-        </Heading>
-        <p className="text-sacred-gray-600">
-          Real-time view of Meridian stablecoin reserves and attestation status
-        </p>
-        {error && (
-          <p className="text-xs text-amber-600 font-mono mt-2">
-            Note: Backend connection issue. Showing cached data.
-          </p>
-        )}
-      </div>
-
-      {/* Key Metrics */}
-      <SacredGrid cols={4} gap={4} className="mb-8">
+        {/* Key Metrics */}
+        <SacredGrid cols={4} gap={4} className="mb-8">
         <SacredCard>
           <MetricDisplay
             label="Total Reserves"
@@ -348,17 +353,18 @@ export default function ReservesPage() {
         </SacredCard>
       </div>
 
-      {/* Footer Info */}
-      <div className="mt-8 p-4 bg-sacred-gray-100 rounded">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-mono text-sacred-gray-600">
-            {connected 
-              ? 'Connected to backend. Data updates automatically via WebSocket.'
-              : 'Using cached data. Attempting to reconnect...'}
-          </p>
-          <p className="text-xs font-mono text-sacred-gray-600">
-            All values in USD. Last refresh: {new Date().toLocaleTimeString()}
-          </p>
+        {/* Footer Info */}
+        <div className="mt-8 p-4 bg-gray-50 dark:bg-[#141416] border border-gray-200 dark:border-gray-800 rounded-xl">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-mono text-gray-600 dark:text-gray-400">
+              {connected 
+                ? 'Connected to backend. Data updates automatically via WebSocket.'
+                : 'Using cached data. Attempting to reconnect...'}
+            </p>
+            <p className="text-xs font-mono text-gray-600 dark:text-gray-400">
+              All values in USD. Last refresh: {new Date().toLocaleTimeString()}
+            </p>
+          </div>
         </div>
       </div>
     </div>

@@ -57,73 +57,105 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen">
-      {/* Hero Section with Animated Gradient */}
-      <section className="relative overflow-hidden">
-        {/* Animated Gradient Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-blue-950/20 dark:via-purple-950/20 dark:to-pink-950/20 animate-gradient bg-gradient-animate opacity-60" />
+    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A0B]">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden border-b border-gray-200 dark:border-gray-800">
+        {/* Subtle Background Pattern */}
+        <div className="absolute inset-0 opacity-[0.015] dark:opacity-[0.03]">
+          <div className="absolute inset-0" style={{
+            backgroundImage: 'radial-gradient(circle at 1px 1px, rgb(0 0 0) 1px, transparent 0)',
+            backgroundSize: '40px 40px'
+          }} />
+        </div>
         
-        <div className="sacred-container relative z-10 py-24 md:py-32">
+        <div className="max-w-[1200px] mx-auto px-8 relative z-10 py-32 md:py-40">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="max-w-4xl"
+            transition={{ duration: 0.6 }}
+            className="max-w-5xl"
           >
-            <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-brand-emerald/10 dark:bg-brand-emerald/20 border border-brand-emerald/20 dark:border-brand-emerald/30 mb-6">
-              <div className="w-2 h-2 rounded-full bg-brand-emerald animate-pulse" />
-              <span className="text-sm font-mono text-brand-emerald">Live on Sepolia Testnet</span>
-            </div>
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1, duration: 0.5 }}
+              className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 mb-8"
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Live on Sepolia Testnet</span>
+            </motion.div>
 
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-medium tracking-tight mb-6 text-gray-900 dark:text-gray-100">
-              Multi-Currency Stablecoin Infrastructure
-            </h1>
+            <motion.h1 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+              className="text-6xl md:text-7xl lg:text-8xl font-medium tracking-tight mb-8 text-gray-900 dark:text-gray-100 leading-[1.1]"
+            >
+              <span className="block">Multi-Currency</span>
+              <span className="block bg-gradient-to-r from-gray-900 via-gray-700 to-gray-900 dark:from-gray-100 dark:via-gray-300 dark:to-gray-100 bg-clip-text text-transparent">
+                Stablecoin Platform
+              </span>
+            </motion.h1>
             
-            <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 mb-8 leading-relaxed max-w-3xl">
-              Professional-grade platform for launching compliant, multi-currency stablecoins backed by sovereign bonds. 
-              Built for institutions and the agentic economy.
-            </p>
+            <motion.p 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+              className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 mb-12 leading-relaxed max-w-3xl font-light"
+            >
+              Enterprise infrastructure for compliant, multi-currency stablecoins backed by sovereign bonds.
+              Built for the agentic economy.
+            </motion.p>
 
-            <div className="flex flex-col sm:flex-row gap-4">
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.5 }}
+              className="flex flex-col sm:flex-row gap-4"
+            >
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <a href="/reserves">
-                  <SacredButton variant="primary" size="lg">
-                    View Reserves →
-                  </SacredButton>
+                <a href="/reserves" className="inline-flex items-center justify-center px-6 py-3 text-sm font-medium bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg transition-all duration-200">
+                  View Reserves
+                  <svg className="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
                 </a>
               </motion.div>
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <a href="https://github.com/mjohnson518/meridian" target="_blank" rel="noopener">
-                  <SacredButton variant="outline" size="lg">
-                    Documentation
-                  </SacredButton>
+                <a href="https://github.com/mjohnson518/meridian" target="_blank" rel="noopener" className="inline-flex items-center justify-center px-6 py-3 text-sm font-medium bg-transparent text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg transition-all duration-200">
+                  Documentation
                 </a>
               </motion.div>
-            </div>
+            </motion.div>
 
-            {/* Trust Badges */}
-            <div className="mt-12 flex flex-wrap items-center gap-6 text-sm font-mono text-gray-500 dark:text-gray-400">
-              <div className="flex items-center space-x-2">
+            {/* Trust Indicators */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6, duration: 0.5 }}
+              className="mt-16 flex flex-wrap items-center gap-8"
+            >
+              <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
                 <Shield className="w-4 h-4" />
-                <span>100% Backed</span>
+                <span className="text-sm">100% Backed</span>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
                 <Lock className="w-4 h-4" />
-                <span>GENIUS Act Compliant</span>
+                <span className="text-sm">Fully Compliant</span>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
                 <BarChart3 className="w-4 h-4" />
-                <span>Real-time Attestation</span>
+                <span className="text-sm">Real-time Attestation</span>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
         </div>
       </section>
 
       {/* Live Stats Section */}
-      <section className="border-y border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
-        <div className="sacred-container py-12">
-          <SacredGrid cols={4} gap={8}>
+      <section className="bg-white dark:bg-[#141416] border-b border-gray-200 dark:border-gray-800">
+        <div className="max-w-[1200px] mx-auto px-8 py-20">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
             {stats.map((stat, index) => (
               <motion.div
                 key={stat.label}
@@ -132,16 +164,16 @@ export default function HomePage() {
                 transition={{ duration: 0.5, delay: index * 0.1 }}
                 className="text-center"
               >
-                <p className="text-xs font-mono uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">
+                <p className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
                   {stat.label}
                 </p>
-                <div className="font-mono text-2xl md:text-3xl tabular-nums text-gray-900 dark:text-gray-100">
+                <div className="font-mono text-3xl md:text-4xl tabular-nums font-medium text-gray-900 dark:text-gray-100">
                   {stat.prefix}
                   {mounted ? (
                     <CountUp
                       end={stat.value}
                       decimals={stat.decimals}
-                      duration={2}
+                      duration={2.5}
                       separator=","
                     />
                   ) : (
@@ -151,27 +183,28 @@ export default function HomePage() {
                 </div>
               </motion.div>
             ))}
-          </SacredGrid>
+          </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="sacred-container py-24">
+      <section className="max-w-[1200px] mx-auto px-8 py-32">
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
+          className="text-center mb-20"
         >
-          <Heading level={2} className="text-3xl md:text-4xl mb-4 text-center">
-            Built for the New Financial System
-          </Heading>
-          <p className="text-center text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto">
-            Enterprise-grade infrastructure for multi-currency stablecoins with full regulatory compliance
+          <h2 className="text-4xl md:text-5xl font-medium mb-6 text-gray-900 dark:text-gray-100 tracking-tight">
+            Built for Global Finance
+          </h2>
+          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto font-light">
+            Enterprise-grade infrastructure with full regulatory compliance
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {features.map((feature, index) => {
             const Icon = feature.icon;
             return (
@@ -180,22 +213,24 @@ export default function HomePage() {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                transition={{ duration: 0.5, delay: index * 0.08 }}
               >
-                <SacredCard className="h-full hover:shadow-lg dark:hover:shadow-brand-emerald/5 transition-shadow duration-300">
-                  <div className="mb-4">
-                    <div className="w-12 h-12 rounded-lg bg-brand-emerald/10 dark:bg-brand-emerald/20 flex items-center justify-center">
-                      <Icon className="w-6 h-6 text-brand-emerald" />
+                <motion.div 
+                  className="h-full p-8 bg-white dark:bg-[#141416] border border-gray-200 dark:border-gray-800 rounded-xl transition-all duration-300"
+                  whileHover={{ y: -4, boxShadow: '0 20px 40px rgba(0,0,0,0.05)' }}
+                >
+                  <div className="mb-6">
+                    <div className="w-12 h-12 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center">
+                      <Icon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                     </div>
                   </div>
-                  <Heading level={3} className="text-lg font-medium mb-3">
+                  <h3 className="text-lg font-medium mb-3 text-gray-900 dark:text-gray-100">
                     {feature.title}
-                  </Heading>
+                  </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
                     {feature.description}
                   </p>
-                </SacredCard>
+                </motion.div>
               </motion.div>
             );
           })}
@@ -203,20 +238,32 @@ export default function HomePage() {
       </section>
 
       {/* Code Example Section */}
-      <section className="border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
-        <div className="sacred-container py-24">
-          <div className="max-w-3xl mx-auto">
+      <section className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-[#141416]">
+        <div className="max-w-[1200px] mx-auto px-8 py-32">
+          <div className="max-w-4xl mx-auto">
             <motion.div
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="text-center mb-16"
             >
-              <Heading level={2} className="text-3xl md:text-4xl mb-8 text-center">
+              <h2 className="text-4xl md:text-5xl font-medium mb-6 text-gray-900 dark:text-gray-100 tracking-tight">
                 Simple Integration
-              </Heading>
-              
-              <div className="bg-gray-900 dark:bg-gray-950 text-white p-6 rounded-lg font-mono text-sm overflow-x-auto border border-gray-800 dark:border-gray-700 shadow-2xl">
-                <pre className="text-brand-emerald">{`// Mint EUR stablecoins
+              </h2>
+              <p className="text-lg text-gray-600 dark:text-gray-400 font-light">
+                Start minting stablecoins with just a few lines of code
+              </p>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+              className="bg-[#0A0A0B] dark:bg-black text-gray-100 p-8 rounded-xl font-mono text-sm overflow-x-auto border border-gray-800 dark:border-gray-900 shadow-2xl"
+            >
+              <pre className="text-emerald-400">{`// Mint EUR stablecoins
 const tx = await contract.mint(
   userAddress,
   ethers.parseUnits("1000", 18), // 1000 EUR
@@ -226,43 +273,44 @@ const tx = await contract.mint(
 // Bond requirement automatically calculated
 // Settlement: T+1 (next business day)
 console.log(\`Minted: \${amount} EUR\`);`}</pre>
-              </div>
             </motion.div>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="sacred-container py-24">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="max-w-2xl mx-auto text-center"
-        >
-          <Heading level={2} className="text-3xl md:text-4xl mb-6">
-            Ready to Build?
-          </Heading>
-          <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
-            Launch your own multi-currency stablecoin in minutes, not months.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <a href="/portal/login">
-                <SacredButton variant="primary" size="lg">
-                  Launch Portal →
-                </SacredButton>
-              </a>
-            </motion.div>
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <a href="https://github.com/mjohnson518/meridian" target="_blank" rel="noopener">
-                <SacredButton variant="outline" size="lg">
+      <section className="border-t border-gray-200 dark:border-gray-800 bg-[#FAFAFA] dark:bg-[#0A0A0B]">
+        <div className="max-w-[1200px] mx-auto px-8 py-32">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="max-w-3xl mx-auto text-center"
+          >
+            <h2 className="text-4xl md:text-5xl font-medium mb-6 text-gray-900 dark:text-gray-100 tracking-tight">
+              Ready to Build?
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-400 mb-12 font-light max-w-2xl mx-auto">
+              Launch your own multi-currency stablecoin in minutes, not months.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <a href="/portal/login" className="inline-flex items-center justify-center px-6 py-3 text-sm font-medium bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg transition-all duration-200">
+                  Launch Portal
+                  <svg className="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </a>
+              </motion.div>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <a href="https://github.com/mjohnson518/meridian" target="_blank" rel="noopener" className="inline-flex items-center justify-center px-6 py-3 text-sm font-medium bg-transparent text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg transition-all duration-200">
                   View on GitHub
-                </SacredButton>
-              </a>
-            </motion.div>
-          </div>
-        </motion.div>
+                </a>
+              </motion.div>
+            </div>
+          </motion.div>
+        </div>
       </section>
     </div>
   );

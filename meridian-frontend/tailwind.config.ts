@@ -11,18 +11,19 @@ const config: Config = {
     extend: {
       colors: {
         sacred: {
-          black: '#000000',
-          white: '#FFFFFF',
+          black: '#0A0A0B',
+          white: '#FAFAFA',
           gray: {
-            100: '#F7F7F7',
-            200: '#E5E5E5',
-            300: '#D4D4D4',
-            400: '#A3A3A3',
-            500: '#737373',
-            600: '#525252',
-            700: '#404040',
-            800: '#262626',
-            900: '#171717',
+            50: '#F9FAFB',
+            100: '#F3F4F6',
+            200: '#E4E4E7',
+            300: '#D1D5DB',
+            400: '#9CA3AF',
+            500: '#727272',
+            600: '#4B5563',
+            700: '#374151',
+            800: '#27272A',
+            900: '#18181B',
           }
         },
         dark: {
@@ -31,12 +32,13 @@ const config: Config = {
           elevated: '#1A1A1D',
           border: '#27272A',
           text: '#FAFAFA',
-          muted: '#A1A1AA',
+          muted: '#727272',
         },
         brand: {
           emerald: '#10B981',
           amber: '#F59E0B',
-          blue: '#3B82F6',
+          blue: '#0066FF',
+          accent: '#0066FF',
         },
       },
       fontFamily: {

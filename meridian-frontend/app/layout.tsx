@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Inter, IBM_Plex_Mono } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
 import { LayoutContent } from "@/components/LayoutContent";
@@ -36,22 +35,26 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${ibmPlexMono.variable} h-full`} suppressHydrationWarning>
-      <body className="h-full bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 antialiased transition-colors duration-300">
-        <Script id="theme-init" strategy="beforeInteractive">
-          {`
-            (function() {
-              try {
-                const savedTheme = localStorage.getItem('theme');
-                if (savedTheme === 'dark') {
-                  document.documentElement.classList.add('dark');
-                } else {
-                  document.documentElement.classList.remove('dark');
-                }
-              } catch (e) {}
-            })();
-          `}
-        </Script>
+    <html lang="en" className={`${inter.variable} ${ibmPlexMono.variable}`} suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  const savedTheme = localStorage.getItem('theme');
+                  if (savedTheme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
+      <body className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A0B] text-[#0A0A0B] dark:text-[#FAFAFA] antialiased transition-colors duration-200">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <LayoutContent>{children}</LayoutContent>
         </ThemeProvider>

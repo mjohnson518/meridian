@@ -6,35 +6,35 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <>
       {/* Header */}
-      <header className="border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm sticky top-0 z-50">
-        <div className="sacred-container">
+      <header className="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-[#0A0A0B]/80 backdrop-blur-md sticky top-0 z-50 transition-colors">
+        <div className="max-w-[1200px] mx-auto px-8">
           <nav className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <a href="/" className="font-mono text-lg font-medium tracking-tight no-underline hover:opacity-70 transition-opacity">
+            <div className="flex items-center space-x-12">
+              <a href="/" className="text-lg font-medium tracking-tight no-underline hover:opacity-70 transition-opacity text-gray-900 dark:text-gray-100">
                 MERIDIAN
               </a>
-              <div className="hidden md:flex items-center space-x-6">
+              <div className="hidden md:flex items-center space-x-8">
                 <a 
                   href="/reserves" 
-                  className="text-sm font-mono uppercase tracking-wider text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors no-underline"
+                  className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors no-underline"
                 >
                   Reserves
                 </a>
                 <a 
                   href="/portal/login" 
-                  className="text-sm font-mono uppercase tracking-wider text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors no-underline"
+                  className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors no-underline"
                 >
                   Portal
                 </a>
                 <a 
                   href="/developers" 
-                  className="text-sm font-mono uppercase tracking-wider text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors no-underline"
+                  className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors no-underline"
                 >
                   Developers
                 </a>
                 <a 
                   href="/docs" 
-                  className="text-sm font-mono uppercase tracking-wider text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors no-underline"
+                  className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors no-underline"
                 >
                   Docs
                 </a>
@@ -45,7 +45,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
               <ThemeToggle />
               <a
                 href="/portal/login"
-                className="px-4 py-2 text-sm font-mono uppercase tracking-wider bg-transparent text-gray-900 dark:text-gray-100 hover:bg-gray-900 dark:hover:bg-emerald-600 hover:text-white border border-gray-900 dark:border-gray-700 rounded transition-all"
+                className="px-4 py-2 text-sm font-medium bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded transition-all duration-200"
               >
                 Launch Portal
               </a>
@@ -60,11 +60,11 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-200 dark:border-gray-800 mt-auto bg-white dark:bg-gray-900">
-        <div className="sacred-container py-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+      <footer className="border-t border-gray-200 dark:border-gray-800 mt-auto bg-gray-50 dark:bg-[#141416]">
+        <div className="max-w-[1200px] mx-auto px-8 py-16">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             <div>
-              <h3 className="font-mono text-sm uppercase tracking-wider mb-4 text-gray-900 dark:text-gray-100">Product</h3>
+              <h3 className="text-sm font-medium tracking-wider mb-4 text-gray-900 dark:text-gray-100">Product</h3>
               <ul className="space-y-2">
                 <li>
                   <a href="/reserves" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors">
@@ -85,7 +85,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
             </div>
             
             <div>
-              <h3 className="font-mono text-sm uppercase tracking-wider mb-4 text-gray-900 dark:text-gray-100">Resources</h3>
+              <h3 className="text-sm font-medium tracking-wider mb-4 text-gray-900 dark:text-gray-100">Resources</h3>
               <ul className="space-y-2">
                 <li>
                   <a href="/docs" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors">
@@ -106,7 +106,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
             </div>
             
             <div>
-              <h3 className="font-mono text-sm uppercase tracking-wider mb-4 text-gray-900 dark:text-gray-100">Contracts</h3>
+              <h3 className="text-sm font-medium tracking-wider mb-4 text-gray-900 dark:text-gray-100">Contracts</h3>
               <ul className="space-y-2 font-mono text-xs">
                 <li>
                   <span className="text-gray-600 dark:text-gray-400">Factory:</span>
@@ -132,7 +132,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
             </div>
             
             <div>
-              <h3 className="font-mono text-sm uppercase tracking-wider mb-4 text-gray-900 dark:text-gray-100">Network</h3>
+              <h3 className="text-sm font-medium tracking-wider mb-4 text-gray-900 dark:text-gray-100">Network</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                 Currently on Sepolia Testnet
               </p>

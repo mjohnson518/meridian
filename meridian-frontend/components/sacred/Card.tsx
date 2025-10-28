@@ -13,12 +13,11 @@ export const SacredCard = ({ children, className, noPadding = false, onClick }: 
   return (
     <div
       className={cn(
-        'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded',
-        'transition-all duration-200',
-        'shadow-sm dark:shadow-lg dark:shadow-black/20',
+        'bg-white dark:bg-[#141416] border border-gray-200 dark:border-gray-800 rounded-xl',
+        'transition-all duration-300',
+        'shadow-sm hover:shadow-md dark:shadow-none',
         !noPadding && 'p-6',
-        onClick && 'cursor-pointer hover:border-gray-300 dark:hover:border-gray-600 hover-lift',
-        !onClick && 'hover-lift',
+        onClick && 'cursor-pointer hover:border-gray-300 dark:hover:border-gray-700',
         className
       )}
       onClick={onClick}

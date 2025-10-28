@@ -1,11 +1,29 @@
 # Rust
-/target/
-**/*.rs.bk
+target/
 Cargo.lock
+*.rs.bk
+*.pdb
 
-# IDE
-.idea/
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+config.env
+
+# Database
+*.sqlite
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+audit.log
+
+# IDEs
 .vscode/
+.idea/
 *.swp
 *.swo
 *~
@@ -14,47 +32,43 @@ Cargo.lock
 .DS_Store
 Thumbs.db
 
-# Environment
-.env
-.env.local
-
-# Database
-*.db
-*.sqlite
-
-# Logs
-*.log
-
-# Build artifacts
-dist/
-build/
-
-# Node (for dashboard)
+# Node
 node_modules/
 .next/
 out/
-.env.local
-.env.production
+dist/
 
-# Contracts
+# Vercel
+.vercel/
+
+# Railway
+.railway/
+
+# Solidity
 contracts/cache/
-contracts/artifacts/
 contracts/out/
+contracts/broadcast/
+contracts/lib/
 
-# Internal/Sensitive Documentation
-OPERATIONAL_ROADMAP.md
-START_BACKEND.md
-*_AUDIT.md
-*_SECURITY.md
-DEPLOYMENT*.md
-*_CHECKLIST.md
-VALIDATION*.md
-*IMPLEMENTATION*.md
-BACKEND_INTEGRATION_STATUS.md
-FULL_STACK_INTEGRATION_COMPLETE.md
-COMMIT_REVIEW.md
-TEST_FULL_STACK.sh
-*_REPORT.md
-*_LOG.md
-TESTING_LOG.md
+# Test artifacts
+coverage/
+.coverage
 
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Security - NEVER commit these
+*_PRIVATE_KEY*
+*_SECRET*
+*_PASSWORD*
+*.pem
+*.key
+
+# Internal Design Documentation - NEVER commit these
+DESIGN_SYSTEM.md
+DESIGN_IMPROVEMENTS.md
+*_DESIGN*.md
+DESIGN_*.md
+TESTING_CHECKLIST.md
