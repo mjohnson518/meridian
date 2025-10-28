@@ -461,7 +461,7 @@ function ComplianceStep({ onNext, onBack, data }: StepProps) {
   };
 
   const removeOwner = (index: number) => {
-    setOwners(owners.filter((_, i) => i !== index));
+    setOwners(owners.filter((_owner, i) => i !== index));
   };
 
   return (
