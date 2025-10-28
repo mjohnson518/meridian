@@ -30,7 +30,7 @@ export const MetricDisplay = ({
       case 'currency':
         return (
           <MonoDisplay
-            value={value}
+            value={typeof value === 'number' || typeof value === 'string' ? value : 0}
             precision={precision}
             currency="USD"
             size="xl"
@@ -39,7 +39,7 @@ export const MetricDisplay = ({
       case 'percentage':
         return (
           <MonoDisplay
-            value={value}
+            value={typeof value === 'number' || typeof value === 'string' ? value : 0}
             precision={precision}
             suffix="%"
             size="xl"
@@ -73,7 +73,7 @@ export const MetricDisplay = ({
       default:
         return (
           <MonoDisplay
-            value={value}
+            value={typeof value === 'number' || typeof value === 'string' ? value : 0}
             precision={0}
             size="xl"
           />
