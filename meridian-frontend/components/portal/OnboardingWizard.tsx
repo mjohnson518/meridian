@@ -481,7 +481,7 @@ function ComplianceStep({ onNext, onBack, data }: StepProps) {
             </p>
 
             <div className="space-y-3">
-              {owners.map((owner, index) => (
+              {owners.map((owner: { name: string; ownership: number; jurisdiction: string }, index: number) => (
                 <div key={index} className="p-4 border border-sacred-gray-200 rounded">
                   <SacredGrid cols={3} gap={3}>
                     <div>
