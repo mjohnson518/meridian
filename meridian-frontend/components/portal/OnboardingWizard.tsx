@@ -124,7 +124,7 @@ export function OnboardingWizard() {
     console.log('[KYC] Submitting onboarding data:', formData);
     
     // TODO: POST to /api/v1/kyc/applications
-    alert('KYC application submitted! You'll receive confirmation within 24-48 hours.');
+    alert("KYC application submitted! You'll receive confirmation within 24-48 hours.");
     window.location.href = '/portal/dashboard';
   };
 
