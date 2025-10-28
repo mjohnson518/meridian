@@ -98,7 +98,7 @@ export function CircularProgress({
                 {label}
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
       )}
     </div>
