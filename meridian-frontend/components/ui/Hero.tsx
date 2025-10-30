@@ -37,7 +37,7 @@ export function Hero({
       {/* Subtle Grid Pattern */}
       <div className="absolute inset-0 grid-pattern opacity-20" />
       
-      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
+      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24">
         <div className="py-24 sm:py-32 lg:py-40">
           <motion.div
             initial={{ opacity: 0, y: 20 }}

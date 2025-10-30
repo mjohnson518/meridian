@@ -7,7 +7,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col min-h-screen bg-white dark:bg-black text-black dark:text-white transition-colors duration-200">
       {/* Header - Vercel-inspired */}
       <header className="sticky top-0 z-50 border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-black/80 backdrop-blur-md transition-colors">
-        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24">
           <nav className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-8 lg:space-x-12">
               <a 
@@ -64,7 +64,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Footer */}
       <footer className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
-        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-12 sm:py-16">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24 py-12 sm:py-16">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 sm:gap-12">
             <div>
               <h3 className="text-sm font-medium tracking-wider mb-4 text-black dark:text-white">Product</h3>

@@ -101,7 +101,7 @@ export default function HomePage() {
 
       {/* Stats Section */}
       <section className="border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
-        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-16 sm:py-20 lg:py-24">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24 py-16 sm:py-20 lg:py-24">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12">
             {stats.map((stat, index) => (
               <motion.div
@@ -137,7 +137,7 @@ export default function HomePage() {
 
       {/* Features Section */}
       <section className="bg-white dark:bg-black border-t border-gray-200 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-16 sm:py-20 lg:py-24">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24 py-16 sm:py-20 lg:py-24">
           <AnimatedSection className="text-center mb-12 sm:mb-16">
             <motion.h2
               initial={{ opacity: 0, y: 20 }}
@@ -190,7 +190,7 @@ export default function HomePage() {
 
       {/* Code Example Section */}
       <section className="border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
-        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-16 sm:py-20 lg:py-24">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24 py-16 sm:py-20 lg:py-24">
           <div className="max-w-4xl mx-auto">
             <AnimatedSection className="text-center mb-10 sm:mb-12">
               <motion.h2
@@ -234,7 +234,7 @@ console.log(\`Minted: \${amount} EUR\`);`}</code>
 
       {/* CTA Section */}
       <section className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
-        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-16 sm:py-20 lg:py-24">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24 py-16 sm:py-20 lg:py-24">
           <AnimatedSection className="max-w-3xl mx-auto text-center">
             <motion.h2
               initial={{ opacity: 0, y: 20 }}
