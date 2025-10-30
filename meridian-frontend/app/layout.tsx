@@ -54,7 +54,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A0B] text-[#0A0A0B] dark:text-[#FAFAFA] antialiased transition-colors duration-200">
+      <body className="min-h-screen bg-white dark:bg-black text-black dark:text-white antialiased transition-colors duration-200">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <LayoutContent>{children}</LayoutContent>
         </ThemeProvider>

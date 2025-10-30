@@ -3,11 +3,8 @@
 import { useEffect, useState } from 'react';
 import CountUp from 'react-countup';
 import { motion } from 'framer-motion';
-import { Shield, TrendingUp, Globe, Zap, Lock, BarChart3 } from 'lucide-react';
-import { SacredCard } from '@/components/sacred/Card';
-import { SacredButton } from '@/components/sacred/Button';
-import { SacredGrid } from '@/components/sacred/Grid';
-import { Heading } from '@/components/sacred/Typography';
+import { Shield, TrendingUp, Globe, Zap, Lock, BarChart3, ArrowRight } from 'lucide-react';
+import { Hero, Card, Button, Badge, MetricCard, AnimatedSection } from '@/components/ui';
 
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
@@ -57,130 +54,96 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A0B]">
+    <div className="min-h-screen" style={{ backgroundColor: '#FFFFFF', color: '#000000' }} data-theme="light">
+      {/* TEST COMPONENT - Using inline styles to bypass Tailwind */}
+      <div 
+        style={{ 
+          backgroundColor: '#10B981', 
+          color: '#FFFFFF', 
+          padding: '2rem', 
+          fontSize: '1.5rem', 
+          fontWeight: 'bold', 
+          textAlign: 'center',
+          borderBottom: '4px solid #0070F3'
+        }}
+      >
+        🧪 TEST: This should be GREEN with white text and blue bottom border (using inline styles)
+      </div>
+      
       {/* Hero Section */}
-      <section className="relative overflow-hidden border-b border-gray-200 dark:border-gray-800">
-        {/* Subtle Background Pattern */}
-        <div className="absolute inset-0 opacity-[0.015] dark:opacity-[0.03]">
-          <div className="absolute inset-0" style={{
-            backgroundImage: 'radial-gradient(circle at 1px 1px, rgb(0 0 0) 1px, transparent 0)',
-            backgroundSize: '40px 40px'
-          }} />
-        </div>
-        
-        <div className="max-w-[1200px] mx-auto px-8 relative z-10 py-32 md:py-40">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="max-w-5xl"
-          >
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1, duration: 0.5 }}
-              className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 mb-8"
-            >
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Live on Sepolia Testnet</span>
-            </motion.div>
-
-            <motion.h1 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className="text-6xl md:text-7xl lg:text-8xl font-medium tracking-tight mb-8 text-gray-900 dark:text-gray-100 leading-[1.1]"
-            >
-              <span className="block">Multi-Currency</span>
-              <span className="block bg-gradient-to-r from-gray-900 via-gray-700 to-gray-900 dark:from-gray-100 dark:via-gray-300 dark:to-gray-100 bg-clip-text text-transparent">
-                Stablecoin Platform
-              </span>
-            </motion.h1>
-            
-            <motion.p 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.5 }}
-              className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 mb-12 leading-relaxed max-w-3xl font-light"
-            >
-              Enterprise infrastructure for compliant, multi-currency stablecoins backed by sovereign bonds.
-              Built for the agentic economy.
-            </motion.p>
-
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.5 }}
-              className="flex flex-col sm:flex-row gap-4"
-            >
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <a href="/reserves" className="inline-flex items-center justify-center px-6 py-3 text-sm font-medium bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg transition-all duration-200">
-                  View Reserves
-                  <svg className="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </a>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <a href="https://github.com/mjohnson518/meridian" target="_blank" rel="noopener" className="inline-flex items-center justify-center px-6 py-3 text-sm font-medium bg-transparent text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg transition-all duration-200">
-                  Documentation
-                </a>
-              </motion.div>
-            </motion.div>
-
-            {/* Trust Indicators */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6, duration: 0.5 }}
-              className="mt-16 flex flex-wrap items-center gap-8"
-            >
-              <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
-                <Shield className="w-4 h-4" />
-                <span className="text-sm">100% Backed</span>
-              </div>
-              <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
-                <Lock className="w-4 h-4" />
-                <span className="text-sm">Fully Compliant</span>
-              </div>
-              <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
-                <BarChart3 className="w-4 h-4" />
-                <span className="text-sm">Real-time Attestation</span>
-              </div>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
+      <Hero
+        badge={
+          <Badge variant="success" size="md">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Live on Sepolia Testnet</span>
+          </Badge>
+        }
+        headline="Banking Infrastructure"
+        subheadline="for the Agentic Economy"
+        description="Multi-currency stablecoins backed by sovereign bonds. Built for global finance with enterprise-grade compliance."
+        ctas={{
+          primary: (
+            <a href="/reserves">
+              <Button variant="primary" size="lg">
+                View Live Demo
+                <ArrowRight className="ml-2 w-4 h-4" />
+              </Button>
+            </a>
+          ),
+          secondary: (
+            <a href="/docs">
+              <Button variant="secondary" size="lg">
+                Read Docs
+              </Button>
+            </a>
+          ),
+        }}
+        trustIndicators={[
+          {
+            icon: <Shield className="w-4 h-4 text-emerald-500" />,
+            text: '100% Backed',
+          },
+          {
+            icon: <Lock className="w-4 h-4 text-blue-500" />,
+            text: 'Fully Compliant',
+          },
+          {
+            icon: <BarChart3 className="w-4 h-4 text-emerald-500" />,
+            text: 'Real-time Attestation',
+          },
+        ]}
+      />
 
       {/* Live Stats Section */}
-      <section className="bg-white dark:bg-[#141416] border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-[1200px] mx-auto px-8 py-20">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
+      <section className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
+        <div className="max-w-7xl mx-auto px-8 py-24">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {stats.map((stat, index) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
-                className="text-center"
               >
-                <p className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
-                  {stat.label}
-                </p>
-                <div className="font-mono text-3xl md:text-4xl tabular-nums font-medium text-gray-900 dark:text-gray-100">
-                  {stat.prefix}
-                  {mounted ? (
-                    <CountUp
-                      end={stat.value}
-                      decimals={stat.decimals}
-                      duration={2.5}
-                      separator=","
-                    />
-                  ) : (
-                    stat.value.toLocaleString()
-                  )}
-                  {stat.suffix}
-                </div>
+                <MetricCard
+                  label={stat.label}
+                  value={
+                    <>
+                      {stat.prefix}
+                      {mounted ? (
+                        <CountUp
+                          end={stat.value}
+                          decimals={stat.decimals}
+                          duration={2.5}
+                          separator=","
+                        />
+                      ) : (
+                        stat.value.toLocaleString()
+                      )}
+                      {stat.suffix}
+                    </>
+                  }
+                />
               </motion.div>
             ))}
           </div>
@@ -188,82 +151,59 @@ export default function HomePage() {
       </section>
 
       {/* Features Section */}
-      <section className="max-w-[1200px] mx-auto px-8 py-32">
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-20"
-        >
-          <h2 className="text-4xl md:text-5xl font-medium mb-6 text-gray-900 dark:text-gray-100 tracking-tight">
-            Built for Global Finance
-          </h2>
-          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto font-light">
-            Enterprise-grade infrastructure with full regulatory compliance
-          </p>
-        </motion.div>
+      <section className="bg-white dark:bg-black border-t border-gray-200 dark:border-gray-800">
+        <div className="max-w-7xl mx-auto px-8 py-24">
+          <AnimatedSection className="text-center mb-16">
+            <h2 className="text-5xl md:text-6xl font-bold mb-6 text-black dark:text-white tracking-tight" style={{ letterSpacing: '-0.02em' }}>
+              Built for Global Finance
+            </h2>
+            <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+              Enterprise-grade infrastructure with full regulatory compliance
+            </p>
+          </AnimatedSection>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {features.map((feature, index) => {
-            const Icon = feature.icon;
-            return (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.08 }}
-              >
-                <motion.div 
-                  className="h-full p-8 bg-white dark:bg-[#141416] border border-gray-200 dark:border-gray-800 rounded-xl transition-all duration-300"
-                  whileHover={{ y: -4, boxShadow: '0 20px 40px rgba(0,0,0,0.05)' }}
-                >
-                  <div className="mb-6">
-                    <div className="w-12 h-12 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center">
-                      <Icon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((feature, index) => {
+              const Icon = feature.icon;
+              return (
+                <AnimatedSection key={feature.title} delay={index * 0.08}>
+                  <Card hover className="h-full group">
+                    <div className="mb-6">
+                      <div className="w-12 h-12 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 flex items-center justify-center group-hover:bg-emerald-500/20 dark:group-hover:bg-emerald-500/30 transition-colors">
+                        <Icon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                      </div>
                     </div>
-                  </div>
-                  <h3 className="text-lg font-medium mb-3 text-gray-900 dark:text-gray-100">
-                    {feature.title}
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-                    {feature.description}
-                  </p>
-                </motion.div>
-              </motion.div>
-            );
-          })}
+                    <h3 className="text-xl font-bold mb-3 text-black dark:text-white">
+                      {feature.title}
+                    </h3>
+                    <p className="text-base text-gray-600 dark:text-gray-400 leading-relaxed">
+                      {feature.description}
+                    </p>
+                  </Card>
+                </AnimatedSection>
+              );
+            })}
+          </div>
         </div>
       </section>
 
       {/* Code Example Section */}
-      <section className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-[#141416]">
-        <div className="max-w-[1200px] mx-auto px-8 py-32">
+      <section className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
+        <div className="max-w-7xl mx-auto px-8 py-24">
           <div className="max-w-4xl mx-auto">
-            <motion.div
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="text-center mb-16"
-            >
-              <h2 className="text-4xl md:text-5xl font-medium mb-6 text-gray-900 dark:text-gray-100 tracking-tight">
+            <AnimatedSection className="text-center mb-12">
+              <h2 className="text-5xl md:text-6xl font-bold mb-6 text-black dark:text-white tracking-tight" style={{ letterSpacing: '-0.02em' }}>
                 Simple Integration
               </h2>
-              <p className="text-lg text-gray-600 dark:text-gray-400 font-light">
+              <p className="text-xl text-gray-600 dark:text-gray-400">
                 Start minting stablecoins with just a few lines of code
               </p>
-            </motion.div>
+            </AnimatedSection>
             
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className="bg-[#0A0A0B] dark:bg-black text-gray-100 p-8 rounded-xl font-mono text-sm overflow-x-auto border border-gray-800 dark:border-gray-900 shadow-2xl"
-            >
-              <pre className="text-emerald-400">{`// Mint EUR stablecoins
+            <AnimatedSection delay={0.2}>
+              <Card className="bg-black dark:bg-gray-900 text-white border-gray-800 dark:border-gray-700" padding="lg">
+                <pre className="font-mono text-sm overflow-x-auto">
+                  <code className="text-emerald-400">{`// Mint EUR stablecoins
 const tx = await contract.mint(
   userAddress,
   ethers.parseUnits("1000", 18), // 1000 EUR
@@ -272,44 +212,38 @@ const tx = await contract.mint(
 
 // Bond requirement automatically calculated
 // Settlement: T+1 (next business day)
-console.log(\`Minted: \${amount} EUR\`);`}</pre>
-            </motion.div>
+console.log(\`Minted: \${amount} EUR\`);`}</code>
+                </pre>
+              </Card>
+            </AnimatedSection>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="border-t border-gray-200 dark:border-gray-800 bg-[#FAFAFA] dark:bg-[#0A0A0B]">
-        <div className="max-w-[1200px] mx-auto px-8 py-32">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="max-w-3xl mx-auto text-center"
-          >
-            <h2 className="text-4xl md:text-5xl font-medium mb-6 text-gray-900 dark:text-gray-100 tracking-tight">
+      <section className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
+        <div className="max-w-7xl mx-auto px-8 py-24">
+          <AnimatedSection className="max-w-3xl mx-auto text-center">
+            <h2 className="text-5xl md:text-6xl font-bold mb-6 text-black dark:text-white tracking-tight" style={{ letterSpacing: '-0.02em' }}>
               Ready to Build?
             </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-400 mb-12 font-light max-w-2xl mx-auto">
+            <p className="text-xl text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto">
               Launch your own multi-currency stablecoin in minutes, not months.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <a href="/portal/login" className="inline-flex items-center justify-center px-6 py-3 text-sm font-medium bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg transition-all duration-200">
+              <a href="/portal/login">
+                <Button variant="primary" size="lg">
                   Launch Portal
-                  <svg className="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </a>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <a href="https://github.com/mjohnson518/meridian" target="_blank" rel="noopener" className="inline-flex items-center justify-center px-6 py-3 text-sm font-medium bg-transparent text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg transition-all duration-200">
+                  <ArrowRight className="ml-2 w-4 h-4" />
+                </Button>
+              </a>
+              <a href="https://github.com/mjohnson518/meridian" target="_blank" rel="noopener">
+                <Button variant="secondary" size="lg">
                   View on GitHub
-                </a>
-              </motion.div>
+                </Button>
+              </a>
             </div>
-          </motion.div>
+          </AnimatedSection>
         </div>
       </section>
     </div>
