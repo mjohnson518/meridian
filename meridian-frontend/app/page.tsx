@@ -54,27 +54,12 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#FFFFFF', color: '#000000' }} data-theme="light">
-      {/* TEST COMPONENT - Using inline styles to bypass Tailwind */}
-      <div 
-        style={{ 
-          backgroundColor: '#10B981', 
-          color: '#FFFFFF', 
-          padding: '2rem', 
-          fontSize: '1.5rem', 
-          fontWeight: 'bold', 
-          textAlign: 'center',
-          borderBottom: '4px solid #0070F3'
-        }}
-      >
-        🧪 TEST: This should be GREEN with white text and blue bottom border (using inline styles)
-      </div>
-      
+    <div className="min-h-screen bg-white dark:bg-black text-black dark:text-white">
       {/* Hero Section */}
       <Hero
         badge={
           <Badge variant="success" size="md">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mr-2" />
             <span>Live on Sepolia Testnet</span>
           </Badge>
         }
@@ -114,10 +99,10 @@ export default function HomePage() {
         ]}
       />
 
-      {/* Live Stats Section */}
-      <section className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
-        <div className="max-w-7xl mx-auto px-8 py-24">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+      {/* Stats Section */}
+      <section className="border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-16 sm:py-20 lg:py-24">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12">
             {stats.map((stat, index) => (
               <motion.div
                 key={stat.label}
@@ -152,21 +137,37 @@ export default function HomePage() {
 
       {/* Features Section */}
       <section className="bg-white dark:bg-black border-t border-gray-200 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-8 py-24">
-          <AnimatedSection className="text-center mb-16">
-            <h2 className="text-5xl md:text-6xl font-bold mb-6 text-black dark:text-white tracking-tight" style={{ letterSpacing: '-0.02em' }}>
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-16 sm:py-20 lg:py-24">
+          <AnimatedSection className="text-center mb-12 sm:mb-16">
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 sm:mb-6 text-black dark:text-white tracking-tight"
+              style={{ letterSpacing: '-0.02em', fontWeight: 700 }}
+            >
               Built for Global Finance
-            </h2>
-            <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="text-lg sm:text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto"
+            >
               Enterprise-grade infrastructure with full regulatory compliance
-            </p>
+            </motion.p>
           </AnimatedSection>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {features.map((feature, index) => {
               const Icon = feature.icon;
               return (
-                <AnimatedSection key={feature.title} delay={index * 0.08}>
+                <motion.div
+                  key={feature.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: index * 0.08 }}
+                >
                   <Card hover className="h-full group">
                     <div className="mb-6">
                       <div className="w-12 h-12 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 flex items-center justify-center group-hover:bg-emerald-500/20 dark:group-hover:bg-emerald-500/30 transition-colors">
@@ -180,7 +181,7 @@ export default function HomePage() {
                       {feature.description}
                     </p>
                   </Card>
-                </AnimatedSection>
+                </motion.div>
               );
             })}
           </div>
@@ -188,16 +189,27 @@ export default function HomePage() {
       </section>
 
       {/* Code Example Section */}
-      <section className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
-        <div className="max-w-7xl mx-auto px-8 py-24">
+      <section className="border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-16 sm:py-20 lg:py-24">
           <div className="max-w-4xl mx-auto">
-            <AnimatedSection className="text-center mb-12">
-              <h2 className="text-5xl md:text-6xl font-bold mb-6 text-black dark:text-white tracking-tight" style={{ letterSpacing: '-0.02em' }}>
+            <AnimatedSection className="text-center mb-10 sm:mb-12">
+              <motion.h2
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 sm:mb-6 text-black dark:text-white tracking-tight"
+                style={{ letterSpacing: '-0.02em', fontWeight: 700 }}
+              >
                 Simple Integration
-              </h2>
-              <p className="text-xl text-gray-600 dark:text-gray-400">
+              </motion.h2>
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+                className="text-lg sm:text-xl text-gray-600 dark:text-gray-400"
+              >
                 Start minting stablecoins with just a few lines of code
-              </p>
+              </motion.p>
             </AnimatedSection>
             
             <AnimatedSection delay={0.2}>
@@ -222,15 +234,31 @@ console.log(\`Minted: \${amount} EUR\`);`}</code>
 
       {/* CTA Section */}
       <section className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
-        <div className="max-w-7xl mx-auto px-8 py-24">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-16 sm:py-20 lg:py-24">
           <AnimatedSection className="max-w-3xl mx-auto text-center">
-            <h2 className="text-5xl md:text-6xl font-bold mb-6 text-black dark:text-white tracking-tight" style={{ letterSpacing: '-0.02em' }}>
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 sm:mb-6 text-black dark:text-white tracking-tight"
+              style={{ letterSpacing: '-0.02em', fontWeight: 700 }}
+            >
               Ready to Build?
-            </h2>
-            <p className="text-xl text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto">
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="text-lg sm:text-xl text-gray-600 dark:text-gray-400 mb-8 sm:mb-12 max-w-2xl mx-auto"
+            >
               Launch your own multi-currency stablecoin in minutes, not months.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            </motion.p>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="flex flex-col sm:flex-row gap-4 justify-center"
+            >
               <a href="/portal/login">
                 <Button variant="primary" size="lg">
                   Launch Portal
@@ -242,7 +270,7 @@ console.log(\`Minted: \${amount} EUR\`);`}</code>
                   View on GitHub
                 </Button>
               </a>
-            </div>
+            </motion.div>
           </AnimatedSection>
         </div>
       </section>
