@@ -75,19 +75,28 @@ interface HeadingProps {
 }
 
 export const Heading = ({ level = 2, children, className, mono = false }: HeadingProps) => {
-  const Tag = `h${level}` as keyof JSX.IntrinsicElements;
-  
-  return (
-    <Tag
-      className={cn(
-        'font-medium leading-tight tracking-tight',
-        mono && 'font-mono',
-        className
-      )}
-    >
-      {children}
-    </Tag>
+  const baseClasses = cn(
+    'font-medium leading-tight tracking-tight',
+    mono && 'font-mono',
+    className
   );
+
+  switch (level) {
+    case 1:
+      return <h1 className={baseClasses}>{children}</h1>;
+    case 2:
+      return <h2 className={baseClasses}>{children}</h2>;
+    case 3:
+      return <h3 className={baseClasses}>{children}</h3>;
+    case 4:
+      return <h4 className={baseClasses}>{children}</h4>;
+    case 5:
+      return <h5 className={baseClasses}>{children}</h5>;
+    case 6:
+      return <h6 className={baseClasses}>{children}</h6>;
+    default:
+      return <h2 className={baseClasses}>{children}</h2>;
+  }
 };
 
 interface LabelProps {
