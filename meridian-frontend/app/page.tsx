@@ -1,3 +1,5 @@
+'use client';
+
 export default function HomePage() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#FFFFFF', color: '#000000' }}>
