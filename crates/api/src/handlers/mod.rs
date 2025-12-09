@@ -7,6 +7,7 @@ pub mod health;
 pub mod kyc;
 pub mod operations;
 pub mod oracle;
+pub mod reserves;
 
 pub use agents::*;
 pub use auth::*;
@@ -15,3 +16,4 @@ pub use health::*;
 pub use kyc::*;
 pub use operations::*;
 pub use oracle::*;
+pub use reserves::*;

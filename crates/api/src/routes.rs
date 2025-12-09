@@ -57,6 +57,16 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/{id}", web::get().to(handlers::get_basket))
                 .route("/{id}/value", web::get().to(handlers::get_basket_value)),
         )
+        // Reserves endpoints
+        .service(
+            web::scope("/api/v1/reserves")
+                .route("/{currency}", web::get().to(handlers::get_reserves)),
+        )
+        // Attestation endpoints
+        .service(
+            web::scope("/api/v1/attestation")
+                .route("/latest", web::get().to(handlers::get_attestation_status)),
+        )
         // Oracle endpoints
         .service(
             web::scope("/api/v1/oracle")
