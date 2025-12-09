@@ -29,7 +29,7 @@ export function connectWebSocket() {
     socket.onopen = () => {
       console.log('[WS] Connected to backend');
       reconnectAttempts = 0;
-      
+
       // Subscribe to real-time updates
       socket?.send(JSON.stringify({
         type: 'subscribe',
@@ -41,7 +41,7 @@ export function connectWebSocket() {
       try {
         const message = JSON.parse(event.data);
         console.log('[WS] Received:', message.type);
-        
+
         // Emit to all listeners for this event type
         const listeners = eventListeners.get(message.type);
         if (listeners) {
@@ -60,7 +60,7 @@ export function connectWebSocket() {
     socket.onclose = () => {
       console.log('[WS] Disconnected');
       socket = null;
-      
+
       // Attempt to reconnect with exponential backoff
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
@@ -81,12 +81,12 @@ export function disconnectWebSocket() {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
-  
+
   if (socket) {
     socket.close();
     socket = null;
   }
-  
+
   reconnectAttempts = 0;
 }
 
@@ -96,7 +96,7 @@ export function subscribeToEvent(eventType: string, callback: EventCallback) {
     eventListeners.set(eventType, new Set());
   }
   eventListeners.get(eventType)!.add(callback);
-  
+
   // Return unsubscribe function
   return () => {
     const listeners = eventListeners.get(eventType);
@@ -117,13 +117,13 @@ export const realtimeApi = {
     if (!response.ok) throw new Error('Failed to fetch baskets');
     return response.json();
   },
-  
+
   async getBasket(id: string): Promise<BasketData> {
     const response = await fetch(`${API_BASE_URL}/baskets/${id}`);
     if (!response.ok) throw new Error('Failed to fetch basket');
     return response.json();
   },
-  
+
   // Reserves
   async getReserves(currency: string = 'EUR'): Promise<ReserveData> {
     const response = await fetch(`${API_BASE_URL}/reserves/${currency}`);
@@ -132,9 +132,9 @@ export const realtimeApi = {
       console.warn('[API] Backend not available, using mock data');
       return this.getMockReserves();
     }
-    
+
     const data = await response.json();
-    
+
     // Transform backend data to frontend format
     return {
       totalValue: data.total_value || data.totalValue || '0',
@@ -146,34 +146,34 @@ export const realtimeApi = {
       currencies: data.currencies || [{ currency: 'EUR', value: parseFloat(data.total_value || '0'), percentage: 100 }]
     };
   },
-  
+
   // Oracle prices
   async getPrice(pair: string): Promise<{ price: string; timestamp: number }> {
     const response = await fetch(`${API_BASE_URL}/oracle/${pair}`);
     if (!response.ok) throw new Error(`Failed to fetch price for ${pair}`);
-    
+
     const data = await response.json();
     return {
       price: data.price || data.price_usd || '0',
       timestamp: data.timestamp || Date.now()
     };
   },
-  
+
   async updatePrice(currency: string): Promise<{ price: string; updated: boolean }> {
     const response = await fetch(`${API_BASE_URL}/oracle/prices/${currency}/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
-    
+
     if (!response.ok) throw new Error(`Failed to update price for ${currency}`);
-    
+
     const data = await response.json();
     return {
       price: data.price || data.price_usd || '0',
       updated: data.updated || true
     };
   },
-  
+
   // Attestation
   async getAttestationStatus(): Promise<AttestationStatus> {
     const response = await fetch(`${API_BASE_URL}/attestation/latest`);
@@ -181,21 +181,76 @@ export const realtimeApi = {
       console.warn('[API] Backend not available, using mock attestation');
       return this.getMockAttestation();
     }
-    
+
     const data = await response.json();
-    
+
     // Transform backend data
     const timestamp = data.timestamp ? new Date(data.timestamp).getTime() : Date.now() - 3600000;
     const now = Date.now();
     const hoursSinceAttestation = (now - timestamp) / (1000 * 60 * 60);
-    
+
     return {
       timestamp,
       status: hoursSinceAttestation < 1 ? 'healthy' : hoursSinceAttestation < 6 ? 'warning' : 'critical',
       nextAttestation: timestamp + (6 * 60 * 60 * 1000) // 6 hours from last attestation
     };
   },
-  
+
+  // Operations (Mint/Burn)
+  async mint(currency: string, amount: string, userId: number): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/operations/mint`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        currency,
+        amount
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || error.message || 'Mint operation failed');
+    }
+
+    return response.json();
+  },
+
+  async burn(currency: string, amount: string, userId: number): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/operations/burn`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        currency,
+        amount
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || error.message || 'Burn operation failed');
+    }
+
+    return response.json();
+  },
+
+  // KYC
+  async submitKyc(data: any): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/kyc/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || error.message || 'KYC submission failed');
+    }
+
+    return response.json();
+  },
+
   // Helper functions
   transformHoldings(backendHoldings: any[]): BondHolding[] {
     if (!backendHoldings || backendHoldings.length === 0) {
@@ -211,7 +266,7 @@ export const realtimeApi = {
         rating: 'AAA'
       }];
     }
-    
+
     return backendHoldings.map(holding => ({
       isin: holding.isin || holding.id || 'N/A',
       name: holding.name || holding.bond_name || 'Unknown Bond',
@@ -223,7 +278,7 @@ export const realtimeApi = {
       rating: holding.rating || holding.credit_rating || 'AAA'
     }));
   },
-  
+
   // Mock data fallbacks
   getMockReserves(): ReserveData {
     return {
@@ -251,7 +306,7 @@ export const realtimeApi = {
       ]
     };
   },
-  
+
   getMockAttestation(): AttestationStatus {
     return {
       timestamp: Date.now() - 3600000, // 1 hour ago

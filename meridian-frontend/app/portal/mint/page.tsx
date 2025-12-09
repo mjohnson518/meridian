@@ -39,7 +39,7 @@ function MintInterface() {
 
   const selectedCurrency = SUPPORTED_CURRENCIES.find(c => c.code === currency);
   const numAmount = parseFloat(amount) || 0;
-  
+
   // Calculate requirements
   const usdValue = numAmount / (selectedCurrency?.rate || 1);
   const issuanceFee = usdValue * FEES.issuance;
@@ -48,17 +48,26 @@ function MintInterface() {
 
   const handleExecute = async () => {
     setLoading(true);
-    
+
     try {
-      // TODO: Call backend API
-      console.log('[Mint] Executing:', { mode, amount, currency });
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      alert(`${mode === 'mint' ? 'Mint' : 'Burn'} request submitted! Transaction will be processed within 24-48 hours.`);
-    } catch (error) {
-      alert('Operation failed. Please try again.');
+      console.log(`[${mode}] Executing request:`, { amount, currency });
+
+      // Use user ID from auth context or fallback to test user ID (to ensure backend works)
+      const userId = user?.id ? parseInt(user.id) : 1;
+
+      if (mode === 'mint') {
+        const result = await import('@/lib/api/realtime-client').then(m => m.realtimeApi.mint(currency, amount, userId));
+        console.log('Mint success:', result);
+      } else {
+        const result = await import('@/lib/api/realtime-client').then(m => m.realtimeApi.burn(currency, amount, userId));
+        console.log('Burn success:', result);
+      }
+
+      alert(`${mode === 'mint' ? 'Mint' : 'Burn'} request submitted successfully! Settlement in T+1.`);
+      setAmount(''); // Reset form
+    } catch (error: any) {
+      console.error('Operation failed:', error);
+      alert(`Operation failed: ${error.message || 'Please try again.'}`);
     } finally {
       setLoading(false);
     }
@@ -117,21 +126,19 @@ function MintInterface() {
               <div className="flex gap-2 mb-6">
                 <button
                   onClick={() => setMode('mint')}
-                  className={`flex-1 px-6 py-3 font-mono text-sm uppercase tracking-wider border rounded transition-colors ${
-                    mode === 'mint'
+                  className={`flex-1 px-6 py-3 font-mono text-sm uppercase tracking-wider border rounded transition-colors ${mode === 'mint'
                       ? 'bg-sacred-black text-sacred-white border-sacred-black'
                       : 'bg-sacred-white text-sacred-black border-sacred-gray-200 hover:border-sacred-gray-300'
-                  }`}
+                    }`}
                 >
                   Mint
                 </button>
                 <button
                   onClick={() => setMode('burn')}
-                  className={`flex-1 px-6 py-3 font-mono text-sm uppercase tracking-wider border rounded transition-colors ${
-                    mode === 'burn'
+                  className={`flex-1 px-6 py-3 font-mono text-sm uppercase tracking-wider border rounded transition-colors ${mode === 'burn'
                       ? 'bg-sacred-black text-sacred-white border-sacred-black'
                       : 'bg-sacred-white text-sacred-black border-sacred-gray-200 hover:border-sacred-gray-300'
-                  }`}
+                    }`}
                 >
                   Burn
                 </button>

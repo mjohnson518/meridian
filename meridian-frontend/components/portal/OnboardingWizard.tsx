@@ -105,7 +105,7 @@ export function OnboardingWizard() {
       ...prev,
       [steps[currentStep].id]: stepData,
     }));
-    
+
     if (currentStep < steps.length - 1) {
       setCurrentStep(prev => prev + 1);
     } else {
@@ -120,12 +120,62 @@ export function OnboardingWizard() {
   };
 
   const handleSubmit = async () => {
-    // Submit to backend
-    console.log('[KYC] Submitting onboarding data:', formData);
-    
-    // TODO: POST to /api/v1/kyc/applications
-    alert("KYC application submitted! You'll receive confirmation within 24-48 hours.");
-    window.location.href = '/portal/dashboard';
+    try {
+      // 1. Process documents (convert Files to Base64 for prototype submission)
+      // In a real production app with S3, we would upload to S3 here and get URLs
+      const processedDocuments: any = {};
+      const docFiles = formData.documents as Record<string, File | null>;
+
+      for (const [key, file] of Object.entries(docFiles)) {
+        if (file) {
+          processedDocuments[key] = {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            // For now, we'll store metadata only to avoid payload size limits in this demo
+            // content: await fileToBase64(file) 
+            status: 'uploaded_log'
+          };
+        }
+      }
+
+      // 2. Prepare payload
+      // Use auth user ID or fallback
+      const userId = 1; // TODO: Get from useAuth() context when fully integrated
+
+      const payload = {
+        user_id: userId,
+        entity_info: formData.entity,
+        documents: processedDocuments,
+        compliance: formData.compliance,
+        wallet: formData.wallet
+      };
+
+      console.log('[KYC] Submitting payload:', payload);
+
+      // 3. Submit
+      const { realtimeApi } = await import('@/lib/api/realtime-client');
+      const result = await realtimeApi.submitKyc(payload);
+
+      console.log('KYC Success:', result);
+
+      alert("KYC application submitted successfully! Reference ID: " + result.application_id);
+      window.location.href = '/portal/dashboard';
+
+    } catch (error: any) {
+      console.error('KYC Submission failed:', error);
+      alert(`Submission failed: ${error.message || 'Please try again'}`);
+    }
+  };
+
+  // Helper helper to convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
   };
 
   const CurrentStepComponent = steps[currentStep].component;
@@ -153,17 +203,15 @@ export function OnboardingWizard() {
             {steps.map((step, index) => (
               <div key={step.id} className="flex-1 flex items-center">
                 <div className="flex flex-col items-center flex-1">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-mono text-sm border-2 ${
-                    index < currentStep ? 'bg-sacred-black text-sacred-white border-sacred-black' :
-                    index === currentStep ? 'bg-sacred-white text-sacred-black border-sacred-black' :
-                    'bg-sacred-white text-sacred-gray-400 border-sacred-gray-300'
-                  }`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-mono text-sm border-2 ${index < currentStep ? 'bg-sacred-black text-sacred-white border-sacred-black' :
+                      index === currentStep ? 'bg-sacred-white text-sacred-black border-sacred-black' :
+                        'bg-sacred-white text-sacred-gray-400 border-sacred-gray-300'
+                    }`}>
                     {index < currentStep ? '✓' : index + 1}
                   </div>
                   <div className="mt-2 text-center">
-                    <div className={`text-xs font-mono uppercase tracking-wider ${
-                      index <= currentStep ? 'text-sacred-black' : 'text-sacred-gray-400'
-                    }`}>
+                    <div className={`text-xs font-mono uppercase tracking-wider ${index <= currentStep ? 'text-sacred-black' : 'text-sacred-gray-400'
+                      }`}>
                       {step.title}
                     </div>
                     <div className="text-xs text-sacred-gray-500 mt-1">
@@ -172,9 +220,8 @@ export function OnboardingWizard() {
                   </div>
                 </div>
                 {index < steps.length - 1 && (
-                  <div className={`h-px flex-1 mx-4 ${
-                    index < currentStep ? 'bg-sacred-black' : 'bg-sacred-gray-300'
-                  }`} />
+                  <div className={`h-px flex-1 mx-4 ${index < currentStep ? 'bg-sacred-black' : 'bg-sacred-gray-300'
+                    }`} />
                 )}
               </div>
             ))}
@@ -333,7 +380,7 @@ function DocumentStep({ onNext, onBack, data }: StepProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate required documents
     if (!files.incorporationDoc || !files.proofOfAddress || !files.bankStatement) {
       alert('Please upload all required documents');
@@ -632,7 +679,7 @@ function WalletStep({ onNext, onBack, data }: StepProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!connected || !walletAddress) {
       alert('Please connect your wallet first');
       return;

@@ -77,8 +77,8 @@ pub async fn mint(
     let amount_decimal = Decimal::from_str(&req.amount)
         .map_err(|_| ApiError::BadRequest("Invalid amount format".to_string()))?;
 
-    // Get FX rate (simplified - should fetch from oracle)
-    let fx_rate = get_fx_rate(&req.currency)?;
+    // Get FX rate (from oracle or fallback)
+    let fx_rate = get_fx_rate(&state, &req.currency).await?;
     let usd_value = amount_decimal / fx_rate;
 
     // Calculate fees and requirements
@@ -165,7 +165,7 @@ pub async fn burn(
         .map_err(|_| ApiError::BadRequest("Invalid amount format".to_string()))?;
 
     // Get FX rate
-    let fx_rate = get_fx_rate(&req.currency)?;
+    let fx_rate = get_fx_rate(&state, &req.currency).await?;
     let usd_value = amount_decimal / fx_rate;
 
     // Calculate redemption fee
@@ -261,9 +261,27 @@ pub async fn get_transactions(
 }
 
 // Helper function to get FX rates (simplified - should use oracle)
-fn get_fx_rate(currency: &str) -> Result<Decimal, ApiError> {
-    // In production, fetch from Chainlink oracle
-    // For now, use hardcoded rates
+// Helper function to get FX rates (uses Oracle with fallback)
+async fn get_fx_rate(
+    state: &Arc<AppState>,
+    currency: &str,
+) -> Result<Decimal, ApiError> {
+    // 1. Try to get authentic price from Oracle
+    let oracle_guard = state.oracle.read().await;
+    
+    if let Some(oracle) = oracle_guard.as_ref() {
+        let pair = format!("{}/USD", currency);
+        match oracle.get_price(&pair).await {
+            Ok(price) => return Ok(price),
+            Err(e) => {
+                tracing::warn!("Oracle failed for {}: {}, falling back to static rates", pair, e);
+            }
+        }
+    } else {
+        tracing::debug!("Oracle not configured, using static rates for {}", currency);
+    }
+
+    // 2. Fallback to hardcoded rates (for dev or if oracle fails)
     let rate = match currency {
         "EUR" => "1.09",
         "GBP" => "1.22",
