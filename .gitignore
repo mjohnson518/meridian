@@ -58,6 +58,7 @@ coverage/
 tmp/
 temp/
 *.tmp
+contracts/build_errors.txt
 
 # Security - NEVER commit these
 *_PRIVATE_KEY*

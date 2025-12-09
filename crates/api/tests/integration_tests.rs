@@ -2,12 +2,26 @@
 
 use actix_web::{test, web, App};
 use meridian_api::{routes, AppState};
+use meridian_db::{create_pool, run_migrations};
 use serde_json::json;
 use std::sync::Arc;
 
+/// Helper to get database URL from environment
+fn get_database_url() -> Option<String> {
+    std::env::var("DATABASE_URL").ok()
+}
+
 #[actix_web::test]
 async fn test_health_check() {
-    let state = Arc::new(AppState::new().await);
+    let Some(db_url) = get_database_url() else {
+        println!("Skipping test: DATABASE_URL not set");
+        return;
+    };
+
+    let pool = create_pool(&db_url).await.expect("Failed to create pool");
+    run_migrations(&pool).await.expect("Failed to run migrations");
+
+    let state = Arc::new(AppState::new(pool).await);
 
     let app = test::init_service(
         App::new()
@@ -28,7 +42,15 @@ async fn test_health_check() {
 
 #[actix_web::test]
 async fn test_create_single_currency_basket() {
-    let state = Arc::new(AppState::new().await);
+    let Some(db_url) = get_database_url() else {
+        println!("Skipping test: DATABASE_URL not set");
+        return;
+    };
+
+    let pool = create_pool(&db_url).await.expect("Failed to create pool");
+    run_migrations(&pool).await.expect("Failed to run migrations");
+
+    let state = Arc::new(AppState::new(pool).await);
 
     let app = test::init_service(
         App::new()
@@ -60,7 +82,15 @@ async fn test_create_single_currency_basket() {
 
 #[actix_web::test]
 async fn test_list_baskets() {
-    let state = Arc::new(AppState::new().await);
+    let Some(db_url) = get_database_url() else {
+        println!("Skipping test: DATABASE_URL not set");
+        return;
+    };
+
+    let pool = create_pool(&db_url).await.expect("Failed to create pool");
+    run_migrations(&pool).await.expect("Failed to run migrations");
+
+    let state = Arc::new(AppState::new(pool).await);
 
     let app = test::init_service(
         App::new()
@@ -89,13 +119,24 @@ async fn test_list_baskets() {
     assert!(resp.status().is_success());
 
     let body: Vec<serde_json::Value> = test::read_body_json(resp).await;
-    assert_eq!(body.len(), 1);
-    assert_eq!(body[0]["name"], "EUR Basket");
+    assert!(body.len() >= 1);
+    
+    // Check if our basket is in the list
+    let found = body.iter().any(|b| b["name"] == "EUR Basket");
+    assert!(found, "Created basket should be in the list");
 }
 
 #[actix_web::test]
 async fn test_get_nonexistent_basket() {
-    let state = Arc::new(AppState::new().await);
+    let Some(db_url) = get_database_url() else {
+        println!("Skipping test: DATABASE_URL not set");
+        return;
+    };
+
+    let pool = create_pool(&db_url).await.expect("Failed to create pool");
+    run_migrations(&pool).await.expect("Failed to run migrations");
+
+    let state = Arc::new(AppState::new(pool).await);
 
     let app = test::init_service(
         App::new()

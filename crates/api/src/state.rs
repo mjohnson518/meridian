@@ -1,20 +1,15 @@
 //! Application state shared across all handlers
 
-use meridian_basket::CurrencyBasket;
 use meridian_oracle::ChainlinkOracle;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use uuid::Uuid;
 
 /// Shared application state
 pub struct AppState {
     /// Database connection pool
     pub db_pool: Arc<PgPool>,
-    /// Registry of all currency baskets
-    pub baskets: Arc<RwLock<HashMap<Uuid, CurrencyBasket>>>,
     /// Chainlink oracle client (optional, requires RPC URL)
     pub oracle: Arc<RwLock<Option<ChainlinkOracle>>>,
 }
@@ -42,28 +37,7 @@ impl AppState {
 
         Self {
             db_pool: Arc::new(db_pool),
-            baskets: Arc::new(RwLock::new(HashMap::new())),
             oracle: Arc::new(RwLock::new(oracle)),
         }
-    }
-
-    /// Gets a basket by ID
-    pub async fn get_basket(&self, id: &Uuid) -> Option<CurrencyBasket> {
-        let baskets = self.baskets.read().await;
-        baskets.get(id).cloned()
-    }
-
-    /// Adds a new basket
-    pub async fn add_basket(&self, basket: CurrencyBasket) -> Uuid {
-        let id = basket.id;
-        let mut baskets = self.baskets.write().await;
-        baskets.insert(id, basket);
-        id
-    }
-
-    /// Lists all baskets
-    pub async fn list_baskets(&self) -> Vec<CurrencyBasket> {
-        let baskets = self.baskets.read().await;
-        baskets.values().cloned().collect()
     }
 }

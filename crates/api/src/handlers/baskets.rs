@@ -6,7 +6,7 @@ use crate::state::AppState;
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use meridian_basket::{CurrencyBasket, CurrencyComponent};
-use meridian_db::BasketRepository;
+use meridian_db::{BasketRepository, DbError};
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -32,11 +32,12 @@ pub async fn create_single_currency_basket(
 
     // Persist basket to database
     let basket_repo = BasketRepository::new((*state.db_pool).clone());
-    basket_repo.create(&basket).await?;
+    basket_repo.create(&basket).await.map_err(|e| {
+        tracing::error!("Failed to persist basket: {}", e);
+        ApiError::InternalError("Failed to persist basket".to_string())
+    })?;
 
-    let id = state.add_basket(basket.clone()).await;
-
-    tracing::info!(id = %id, "Basket created and persisted to database");
+    tracing::info!(id = %basket.id, "Basket created and persisted to database");
 
     Ok(HttpResponse::Created().json(BasketResponse::from(basket)))
 }
@@ -54,11 +55,12 @@ pub async fn create_imf_sdr_basket(
 
     // Persist basket to database
     let basket_repo = BasketRepository::new((*state.db_pool).clone());
-    basket_repo.create(&basket).await?;
+    basket_repo.create(&basket).await.map_err(|e| {
+        tracing::error!("Failed to persist basket: {}", e);
+        ApiError::InternalError("Failed to persist basket".to_string())
+    })?;
 
-    let id = state.add_basket(basket.clone()).await;
-
-    tracing::info!(id = %id, "IMF SDR basket created and persisted to database");
+    tracing::info!(id = %basket.id, "IMF SDR basket created and persisted to database");
 
     Ok(HttpResponse::Created().json(BasketResponse::from(basket)))
 }
@@ -101,11 +103,12 @@ pub async fn create_custom_basket(
 
     // Persist basket to database
     let basket_repo = BasketRepository::new((*state.db_pool).clone());
-    basket_repo.create(&basket).await?;
+    basket_repo.create(&basket).await.map_err(|e| {
+        tracing::error!("Failed to persist basket: {}", e);
+        ApiError::InternalError("Failed to persist basket".to_string())
+    })?;
 
-    let id = state.add_basket(basket.clone()).await;
-
-    tracing::info!(id = %id, "Custom basket created and persisted to database");
+    tracing::info!(id = %basket.id, "Custom basket created and persisted to database");
 
     Ok(HttpResponse::Created().json(BasketResponse::from(basket)))
 }
@@ -121,10 +124,19 @@ pub async fn get_basket(
 
     tracing::debug!(id = %basket_id, "Fetching basket");
 
-    let basket = state
-        .get_basket(&basket_id)
+    tracing::debug!(id = %basket_id, "Fetching basket");
+
+    let basket_repo = BasketRepository::new((*state.db_pool).clone());
+    let basket = basket_repo
+        .find_by_id(basket_id)
         .await
-        .ok_or_else(|| ApiError::NotFound(format!("Basket {} not found", basket_id)))?;
+        .map_err(|e| match e {
+            DbError::NotFound(_) => ApiError::NotFound(format!("Basket {} not found", basket_id)),
+            _ => {
+                tracing::error!("Failed to fetch basket: {}", e);
+                ApiError::InternalError("Database error".to_string())
+            }
+        })?;
 
     Ok(HttpResponse::Ok().json(BasketResponse::from(basket)))
 }
@@ -135,7 +147,15 @@ pub async fn get_basket(
 pub async fn list_baskets(state: web::Data<Arc<AppState>>) -> Result<HttpResponse, ApiError> {
     tracing::debug!("Listing all baskets");
 
-    let baskets = state.list_baskets().await;
+    tracing::debug!("Listing all baskets");
+
+    let basket_repo = BasketRepository::new((*state.db_pool).clone());
+    // Default pagination: limit 100, offset 0
+    let baskets = basket_repo.list(100, 0).await.map_err(|e| {
+        tracing::error!("Failed to list baskets: {}", e);
+        ApiError::InternalError("Database error".to_string())
+    })?;
+
     let responses: Vec<BasketResponse> = baskets.into_iter().map(BasketResponse::from).collect();
 
     Ok(HttpResponse::Ok().json(responses))
@@ -152,10 +172,19 @@ pub async fn get_basket_value(
 
     tracing::debug!(id = %basket_id, "Calculating basket value");
 
-    let basket = state
-        .get_basket(&basket_id)
+    tracing::debug!(id = %basket_id, "Calculating basket value");
+
+    let basket_repo = BasketRepository::new((*state.db_pool).clone());
+    let basket = basket_repo
+        .find_by_id(basket_id)
         .await
-        .ok_or_else(|| ApiError::NotFound(format!("Basket {} not found", basket_id)))?;
+        .map_err(|e| match e {
+            DbError::NotFound(_) => ApiError::NotFound(format!("Basket {} not found", basket_id)),
+            _ => {
+                tracing::error!("Failed to fetch basket: {}", e);
+                ApiError::InternalError("Database error".to_string())
+            }
+        })?;
 
     // Get oracle
     let oracle_guard = state.oracle.read().await;

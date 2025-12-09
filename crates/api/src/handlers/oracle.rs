@@ -108,7 +108,10 @@ pub async fn update_price(
         is_stale: feed.is_stale,
         round_id,
     };
-    price_repo.insert(insert_request).await?;
+    price_repo.insert(insert_request).await.map_err(|e| {
+        tracing::error!("Failed to persist price: {}", e);
+        ApiError::InternalError("Failed to persist price".to_string())
+    })?;
 
     tracing::info!(pair = %pair, price = %price, "Price updated and persisted to database");
 
