@@ -184,7 +184,7 @@ export function OnboardingWizard() {
     <div className="min-h-screen bg-sacred-gray-100">
       {/* Header */}
       <header className="bg-sacred-white border-b border-sacred-gray-200">
-        <div className="sacred-container">
+        <div className="sacred-container px-6">
           <div className="flex items-center justify-between h-16">
             <div className="font-mono text-lg font-medium">
               MERIDIAN - KYC Onboarding
@@ -198,14 +198,14 @@ export function OnboardingWizard() {
 
       {/* Progress Indicator */}
       <div className="bg-sacred-white border-b border-sacred-gray-200">
-        <div className="sacred-container py-6">
+        <div className="sacred-container px-6 py-6">
           <div className="flex items-center justify-between">
             {steps.map((step, index) => (
               <div key={step.id} className="flex-1 flex items-center">
                 <div className="flex flex-col items-center flex-1">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center font-mono text-sm border-2 ${index < currentStep ? 'bg-sacred-black text-sacred-white border-sacred-black' :
-                      index === currentStep ? 'bg-sacred-white text-sacred-black border-sacred-black' :
-                        'bg-sacred-white text-sacred-gray-400 border-sacred-gray-300'
+                    index === currentStep ? 'bg-sacred-white text-sacred-black border-sacred-black' :
+                      'bg-sacred-white text-sacred-gray-400 border-sacred-gray-300'
                     }`}>
                     {index < currentStep ? '✓' : index + 1}
                   </div>
@@ -230,7 +230,7 @@ export function OnboardingWizard() {
       </div>
 
       {/* Step Content */}
-      <div className="sacred-container py-8">
+      <div className="sacred-container px-6 py-8">
         <div className="max-w-3xl mx-auto">
           <CurrentStepComponent
             onNext={handleNext}

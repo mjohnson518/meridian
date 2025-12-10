@@ -3,27 +3,36 @@
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlowingButton } from '@/components/ui/GlowingButton';
 import { GradientText } from '@/components/ui/GradientText';
-import { FloatingElements } from '@/components/ui/FloatingElements';
+// import { FloatingElements } from '@/components/ui/FloatingElements'; // Replaced by EnergySphere
 import { ArrowRight, Globe, Shield, Zap, TrendingUp, Building2, Code2 } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const EnergySphere = dynamic(() => import('@/components/ui/EnergySphere').then(mod => mod.EnergySphere), {
+  ssr: false,
+  loading: () => <div className="w-full h-full bg-transparent" />
+});
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#050608] text-white overflow-x-hidden selection:bg-emerald-500/30 font-sans relative">
 
-      {/* Deep Space Background */}
+      {/* Deep Space Background & Energy Sphere */}
       <div className="fixed inset-0 z-0 pointer-events-none">
-        {/* Main Nebula - Emerald/Teal - Deeper and richer */}
-        <div className="absolute top-[-20%] left-[-10%] w-[80%] h-[80%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-900/40 via-[#050608] to-transparent blur-[120px] animate-pulse-slow" />
 
-        {/* Secondary Nebula - Blue/Purple */}
-        <div className="absolute bottom-[-20%] right-[-10%] w-[80%] h-[80%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-900/40 via-[#050608] to-transparent blur-[120px] animation-delay-2000" />
+        {/* 3D Energy Sphere - Centered but subtle */}
+        <div className="absolute inset-0 z-0 opacity-80">
+          <EnergySphere />
+        </div>
+
+        {/* Main Nebula - Emerald/Teal - Deeper and richer */}
+        {/* <div className="absolute top-[-20%] left-[-10%] w-[80%] h-[80%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-900/40 via-[#050608] to-transparent blur-[120px] animate-pulse-slow" /> */}
+
+        {/* Secondary Nebula - Blue/Purple (Keep for depth) */}
+        <div className="absolute bottom-[-20%] right-[-10%] w-[80%] h-[80%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-[#050608] to-transparent blur-[120px] animation-delay-2000 opacity-50" />
 
         {/* Grid Pattern Overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] z-10 mix-blend-overlay" />
       </div>
-
-      {/* Floating 3D Elements (CSS/SVG) */}
-      <FloatingElements />
 
       {/* Navigation */}
       <nav className="relative z-50 border-b border-white/5 bg-[#050608]/50 backdrop-blur-xl">
@@ -62,7 +71,7 @@ export default function HomePage() {
             </span>
           </h1>
 
-          <p className="text-xl md:text-2xl text-gray-400 max-w-3xl mx-auto mb-12 leading-relaxed animate-slide-up animation-delay-200 font-light">
+          <p className="text-xl md:text-2xl text-emerald-50/90 drop-shadow-md shadow-black max-w-3xl mx-auto mb-12 leading-relaxed animate-slide-up animation-delay-200 font-light">
             Launch compliant stablecoins backed by sovereign bonds.
             Serving the <span className="text-white font-medium">99% of the market</span> beyond USD.
           </p>

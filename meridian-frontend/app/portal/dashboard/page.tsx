@@ -25,7 +25,7 @@ function DashboardContent() {
     <div className="min-h-screen bg-sacred-gray-100">
       {/* Header */}
       <header className="bg-sacred-white border-b border-sacred-gray-200">
-        <div className="sacred-container">
+        <div className="sacred-container px-6">
           <nav className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-8">
               <a href="/portal/dashboard" className="font-mono text-lg font-medium">
@@ -60,7 +60,7 @@ function DashboardContent() {
       </header>
 
       {/* Main Content */}
-      <div className="sacred-container py-8">
+      <div className="sacred-container px-6 py-8">
         {/* KYC Status Banner */}
         {user.kycStatus !== KYCStatus.APPROVED && (
           <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded">
@@ -70,13 +70,13 @@ function DashboardContent() {
                   KYC Verification Required
                 </h3>
                 <p className="text-xs text-amber-700">
-                  {user.kycStatus === KYCStatus.NOT_STARTED && 
+                  {user.kycStatus === KYCStatus.NOT_STARTED &&
                     'Complete KYC verification to access mint/burn operations.'}
-                  {user.kycStatus === KYCStatus.IN_PROGRESS && 
+                  {user.kycStatus === KYCStatus.IN_PROGRESS &&
                     'Your KYC application is in progress. Continue where you left off.'}
-                  {user.kycStatus === KYCStatus.PENDING_REVIEW && 
+                  {user.kycStatus === KYCStatus.PENDING_REVIEW &&
                     'Your KYC application is under review. We will notify you when approved.'}
-                  {user.kycStatus === KYCStatus.REJECTED && 
+                  {user.kycStatus === KYCStatus.REJECTED &&
                     'Your KYC application was rejected. Contact support for details.'}
                 </p>
               </div>
@@ -113,7 +113,7 @@ function DashboardContent() {
               format="currency"
             />
           </SacredCard>
-          
+
           <SacredCard>
             <MetricDisplay
               label="Total Minted"
@@ -121,7 +121,7 @@ function DashboardContent() {
               format="currency"
             />
           </SacredCard>
-          
+
           <SacredCard>
             <MetricDisplay
               label="Active Currencies"
@@ -129,7 +129,7 @@ function DashboardContent() {
               format="number"
             />
           </SacredCard>
-          
+
           <SacredCard>
             <MetricDisplay
               label="KYC Status"
@@ -137,8 +137,8 @@ function DashboardContent() {
               format="number"
               status={
                 user.kycStatus === KYCStatus.APPROVED ? 'healthy' :
-                user.kycStatus === KYCStatus.PENDING_REVIEW ? 'warning' :
-                'critical'
+                  user.kycStatus === KYCStatus.PENDING_REVIEW ? 'warning' :
+                    'critical'
               }
             />
           </SacredCard>

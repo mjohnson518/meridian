@@ -77,7 +77,7 @@ function MintInterface() {
     <div className="min-h-screen bg-sacred-gray-100">
       {/* Header */}
       <header className="bg-sacred-white border-b border-sacred-gray-200">
-        <div className="sacred-container">
+        <div className="sacred-container px-6">
           <nav className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-8">
               <a href="/portal/dashboard" className="font-mono text-lg font-medium">
@@ -108,7 +108,7 @@ function MintInterface() {
       </header>
 
       {/* Main Content */}
-      <div className="sacred-container py-8">
+      <div className="sacred-container px-6 py-8">
         <div className="mb-8">
           <Heading level={1} className="text-3xl mb-2">
             Mint & Burn Operations
@@ -123,23 +123,25 @@ function MintInterface() {
           <div className="col-span-12 lg:col-span-8">
             <SacredCard>
               {/* Mode Toggle */}
-              <div className="flex gap-2 mb-6">
+              <div className="grid grid-cols-2 gap-4 mb-8">
                 <button
                   onClick={() => setMode('mint')}
-                  className={`flex-1 px-6 py-3 font-mono text-sm uppercase tracking-wider border rounded transition-colors ${mode === 'mint'
-                      ? 'bg-sacred-black text-sacred-white border-sacred-black'
-                      : 'bg-sacred-white text-sacred-black border-sacred-gray-200 hover:border-sacred-gray-300'
+                  className={`flex items-center justify-center gap-2 px-6 py-4 font-mono text-sm uppercase tracking-wider border rounded-lg transition-all duration-200 ${mode === 'mint'
+                    ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/20 scale-[1.02]'
+                    : 'bg-sacred-white text-sacred-gray-500 border-sacred-gray-200 hover:border-emerald-200 hover:text-emerald-600 hover:bg-emerald-50/10'
                     }`}
                 >
+                  <div className={`w-2 h-2 rounded-full ${mode === 'mint' ? 'bg-white' : 'bg-emerald-500'}`} />
                   Mint
                 </button>
                 <button
                   onClick={() => setMode('burn')}
-                  className={`flex-1 px-6 py-3 font-mono text-sm uppercase tracking-wider border rounded transition-colors ${mode === 'burn'
-                      ? 'bg-sacred-black text-sacred-white border-sacred-black'
-                      : 'bg-sacred-white text-sacred-black border-sacred-gray-200 hover:border-sacred-gray-300'
+                  className={`flex items-center justify-center gap-2 px-6 py-4 font-mono text-sm uppercase tracking-wider border rounded-lg transition-all duration-200 ${mode === 'burn'
+                    ? 'bg-rose-500 text-white border-rose-500 shadow-lg shadow-rose-500/20 scale-[1.02]'
+                    : 'bg-sacred-white text-sacred-gray-500 border-sacred-gray-200 hover:border-rose-200 hover:text-rose-600 hover:bg-rose-50/10'
                     }`}
                 >
+                  <div className={`w-2 h-2 rounded-full ${mode === 'burn' ? 'bg-white' : 'bg-rose-500'}`} />
                   Burn
                 </button>
               </div>
