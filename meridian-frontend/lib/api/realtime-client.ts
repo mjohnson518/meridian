@@ -2,9 +2,34 @@
 
 import { ReserveData, AttestationStatus, BondHolding, BasketData } from './client';
 
-// Configuration
+// Configuration with production validation
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const IS_DEV = !IS_PRODUCTION;
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/ws';
+
+// Production safety check: warn if WebSocket URL is not configured
+if (IS_PRODUCTION && !process.env.NEXT_PUBLIC_WS_URL) {
+  console.error('[WebSocket] SECURITY WARNING: NEXT_PUBLIC_WS_URL not configured for production');
+}
+
+// Validate WS_URL uses secure protocol in production
+if (IS_PRODUCTION && WS_URL.startsWith('ws://')) {
+  console.error('[WebSocket] SECURITY WARNING: WebSocket using insecure ws:// protocol in production. Use wss:// instead.');
+}
+
+// Debug logging that only runs in development
+const debugLog = (...args: any[]) => {
+  if (IS_DEV) console.log(...args);
+};
+
+// Get auth token from storage (WebSocket only - cookies can't be used for WS)
+// SECURITY: This token is stored specifically for WebSocket auth since WS can't use httpOnly cookies
+const getAuthToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('meridian_ws_token');
+};
 
 // WebSocket connection state
 let socket: WebSocket | null = null;
@@ -23,12 +48,28 @@ export function connectWebSocket() {
     return; // Already connected
   }
 
+  // Require authentication for WebSocket connections
+  const token = getAuthToken();
+  if (!token) {
+    debugLog('[WS] No auth token, skipping WebSocket connection');
+    return;
+  }
+
   try {
+    // SECURITY: Connect without token in URL to prevent token leakage
+    // Tokens in URLs are logged in server logs, browser history, and referrer headers
     socket = new WebSocket(WS_URL);
 
     socket.onopen = () => {
-      console.log('[WS] Connected to backend');
+      debugLog('[WS] Connected to backend');
       reconnectAttempts = 0;
+
+      // SECURITY: Authenticate via message after connection, not URL query parameter
+      // This prevents token exposure in logs and history
+      socket?.send(JSON.stringify({
+        type: 'authenticate',
+        token: token
+      }));
 
       // Subscribe to real-time updates
       socket?.send(JSON.stringify({
@@ -40,7 +81,7 @@ export function connectWebSocket() {
     socket.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
-        console.log('[WS] Received:', message.type);
+        debugLog('[WS] Received:', message.type);
 
         // Emit to all listeners for this event type
         const listeners = eventListeners.get(message.type);
@@ -48,17 +89,17 @@ export function connectWebSocket() {
           listeners.forEach(callback => callback(message.data));
         }
       } catch (error) {
-        console.error('[WS] Failed to parse message:', error);
+        debugLog('[WS] Failed to parse message:', error);
       }
     };
 
-    socket.onerror = (error) => {
-      console.warn('[WS] Connection error (backend may not have WebSocket support yet)');
+    socket.onerror = () => {
+      debugLog('[WS] Connection error (backend may not have WebSocket support yet)');
       // Don't throw - gracefully degrade to polling
     };
 
     socket.onclose = () => {
-      console.log('[WS] Disconnected');
+      debugLog('[WS] Disconnected');
       socket = null;
 
       // Attempt to reconnect with exponential backoff
@@ -66,13 +107,13 @@ export function connectWebSocket() {
         const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
         reconnectTimer = setTimeout(() => {
           reconnectAttempts++;
-          console.log(`[WS] Reconnecting... (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+          debugLog(`[WS] Reconnecting... (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
           connectWebSocket();
         }, delay);
       }
     };
   } catch (error) {
-    console.error('[WS] Failed to connect:', error);
+    debugLog('[WS] Failed to connect:', error);
   }
 }
 
@@ -129,7 +170,7 @@ export const realtimeApi = {
     const response = await fetch(`${API_BASE_URL}/reserves/${currency}`);
     if (!response.ok) {
       // Fallback to mock data if backend is not available
-      console.warn('[API] Backend not available, using mock data');
+      debugLog('[API] Backend not available, using mock data');
       return this.getMockReserves();
     }
 
@@ -178,7 +219,7 @@ export const realtimeApi = {
   async getAttestationStatus(): Promise<AttestationStatus> {
     const response = await fetch(`${API_BASE_URL}/attestation/latest`);
     if (!response.ok) {
-      console.warn('[API] Backend not available, using mock attestation');
+      debugLog('[API] Backend not available, using mock attestation');
       return this.getMockAttestation();
     }
 
@@ -250,7 +291,7 @@ export const realtimeApi = {
 
       return response.json();
     } catch (error) {
-      console.warn('[API] KYC backend unavailable, using mock response');
+      debugLog('[API] KYC backend unavailable, using mock response');
       // Mock successful submission for demo purposes
       return new Promise(resolve => setTimeout(() => {
         resolve({

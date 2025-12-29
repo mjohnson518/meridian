@@ -9,6 +9,7 @@ import { SacredButton } from '../sacred/Button';
 import { SacredGrid } from '../sacred/Grid';
 import { Heading, Label } from '../sacred/Typography';
 import { EntityType } from '@/lib/auth/types';
+import { useAuth } from '@/lib/auth/AuthContext';
 
 // Validation schemas
 const entitySchema = z.object({
@@ -65,6 +66,7 @@ interface StepProps {
 }
 
 export function OnboardingWizard() {
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
     entity: {},
@@ -140,8 +142,10 @@ export function OnboardingWizard() {
       }
 
       // 2. Prepare payload
-      // Use auth user ID or fallback
-      const userId = 1; // TODO: Get from useAuth() context when fully integrated
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+      const userId = parseInt(user.id, 10);
 
       const payload = {
         user_id: userId,
@@ -151,19 +155,16 @@ export function OnboardingWizard() {
         wallet: formData.wallet
       };
 
-      console.log('[KYC] Submitting payload:', payload);
-
-      // 3. Submit
+      // 3. Submit (PII not logged for security)
       const { realtimeApi } = await import('@/lib/api/realtime-client');
       const result = await realtimeApi.submitKyc(payload);
-
-      console.log('KYC Success:', result);
 
       alert("KYC application submitted successfully! Reference ID: " + result.application_id);
       window.location.href = '/portal/dashboard';
 
     } catch (error: any) {
-      console.error('KYC Submission failed:', error);
+      // Log error type only, not full error which may contain PII
+      console.error('[KYC] Submission failed');
       alert(`Submission failed: ${error.message || 'Please try again'}`);
     }
   };

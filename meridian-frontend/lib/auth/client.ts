@@ -2,11 +2,25 @@
 
 import { User, Session, LoginCredentials, RegisterData, UserRole, KYCStatus } from './types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
+// API URL configuration - fails fast in production if not set
+const getApiBaseUrl = (): string => {
+  const url = process.env.NEXT_PUBLIC_API_URL;
+  if (!url && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    console.error('[Auth] NEXT_PUBLIC_API_URL not configured for production');
+    throw new Error('API configuration error: NEXT_PUBLIC_API_URL must be set in production');
+  }
+  return url || 'http://localhost:8080/api/v1';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Session storage keys
+// SECURITY NOTE: Backend sets httpOnly cookies for primary authentication
+// These localStorage keys are for:
+// - SESSION_KEY: User info display and session expiry tracking (no sensitive tokens)
+// - TOKEN_KEY: WebSocket authentication only (WS can't use cookies)
 const SESSION_KEY = 'meridian_session';
-const TOKEN_KEY = 'meridian_token';
+const TOKEN_KEY = 'meridian_ws_token'; // Renamed to clarify WebSocket-only use
 
 export const authClient = {
   // Login
@@ -15,6 +29,7 @@ export const authClient = {
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // SECURITY: Include cookies for httpOnly auth
         body: JSON.stringify(credentials),
       });
 
@@ -45,11 +60,8 @@ export const authClient = {
       this.saveSession(session);
       return session;
     } catch (error) {
-      // Fall back to mock in development
-      console.warn('[Auth] Backend error, using mock:', error);
-      const mockSession = this.createMockSession(credentials.email);
-      this.saveSession(mockSession);
-      return mockSession;
+      console.error('[Auth] Login error:', error instanceof Error ? error.message : 'Unknown error');
+      throw error;
     }
   },
 
@@ -59,6 +71,7 @@ export const authClient = {
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // SECURITY: Include cookies for httpOnly auth
         body: JSON.stringify({
           email: data.email,
           password: data.password,
@@ -94,11 +107,8 @@ export const authClient = {
       this.saveSession(session);
       return session;
     } catch (error) {
-      // Mock registration for development
-      console.warn('[Auth] Backend error, using mock:', error);
-      const mockSession = this.createMockSession(data.email, data.role);
-      this.saveSession(mockSession);
-      return mockSession;
+      console.error('[Auth] Registration error:', error instanceof Error ? error.message : 'Unknown error');
+      throw error;
     }
   },
 
@@ -161,23 +171,44 @@ export const authClient = {
     }
   },
 
-  // Create mock session for development
+  // Create mock session for development only
+  // SECURITY: This function is strictly for local development
   createMockSession(email: string, role: UserRole = UserRole.TREASURY): Session {
+    // Multi-layer production detection
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isProductionDomain = typeof window !== 'undefined' &&
+      window.location.hostname !== 'localhost' &&
+      !window.location.hostname.startsWith('127.') &&
+      !window.location.hostname.endsWith('.local');
+
+    if (isProduction || isProductionDomain) {
+      console.error('[Auth] SECURITY: Mock sessions blocked in production');
+      throw new Error('Mock sessions are not available in production');
+    }
+
+    console.warn('[Auth] Creating mock session - FOR DEVELOPMENT ONLY');
+
+    // Use environment variable for test wallet or clearly invalid address
+    const testWallet = process.env.NEXT_PUBLIC_TEST_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000';
+
     const mockUser: User = {
       id: 'mock-user-id',
       email,
       role,
       organization: 'Mock Corporation Ltd.',
       kycStatus: KYCStatus.APPROVED,
-      walletAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+      walletAddress: testWallet,
       createdAt: new Date(),
       lastLoginAt: new Date(),
     };
 
+    // Generate unique mock tokens to avoid static token attacks
+    const mockId = Math.random().toString(36).substring(7);
+
     return {
       user: mockUser,
-      accessToken: 'mock-jwt-token',
-      refreshToken: 'mock-refresh-token',
+      accessToken: `dev-only-token-${mockId}`,
+      refreshToken: `dev-only-refresh-${mockId}`,
       expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
     };
   },
@@ -190,8 +221,10 @@ export const authClient = {
     }
 
     try {
+      // SECURITY: Use cookies for auth, fallback to header for refresh token
       const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
+        credentials: 'include', // Include httpOnly cookies
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.refreshToken}`,
@@ -206,9 +239,10 @@ export const authClient = {
       const newSession = await response.json();
       this.saveSession(newSession);
       return newSession;
-    } catch {
-      // Keep existing session in development
-      return session;
+    } catch (error) {
+      console.error('[Auth] Token refresh error:', error instanceof Error ? error.message : 'Unknown error');
+      this.logout();
+      return null;
     }
   },
 };
