@@ -182,6 +182,13 @@ contract MeridianStablecoin is
      */
     event ReserveRatioUpdated(uint256 oldRatio, uint256 newRatio);
 
+    /**
+     * @notice Emitted when compliance oracle is updated
+     * @param oldOracle Previous oracle address
+     * @param newOracle New oracle address
+     */
+    event ComplianceOracleUpdated(address indexed oldOracle, address indexed newOracle);
+
     // ============ Errors ============
 
     error InsufficientReserveBacking();
@@ -192,6 +199,7 @@ contract MeridianStablecoin is
     error InvalidReserveRatio();
     error AttestationBelowSupply();
     error TransferNotCompliant();
+    error InvalidAdminAddress();
 
     // ============ Initialization ============
 
@@ -217,6 +225,9 @@ contract MeridianStablecoin is
         address admin_,
         address complianceOracle_
     ) public initializer {
+        // HIGH-003: Validate admin address to prevent permanently locked contract
+        if (admin_ == address(0)) revert InvalidAdminAddress();
+
         __ERC20_init(name_, symbol_);
         __AccessControl_init();
         __Pausable_init();
@@ -293,23 +304,29 @@ contract MeridianStablecoin is
      * @notice Burn tokens and release pro-rata reserves
      * @param amount Amount of tokens to burn
      * @dev Anyone can burn their own tokens
+     * @dev Follows CEI pattern: Checks -> Effects (burn) -> Effects (reserve update)
      */
     function burn(uint256 amount) external whenNotPaused {
+        // CHECKS
         if (isBlacklisted[msg.sender]) revert SenderBlacklisted();
-        
+
         uint256 currentSupply = totalSupply();
         require(balanceOf(msg.sender) >= amount, "Insufficient balance");
         require(currentSupply > 0, "No supply to burn");
 
-        // Calculate reserve to release (pro-rata)
+        // Calculate reserve to release BEFORE any state changes (pro-rata)
+        // Note: This calculation must happen before _burn() changes the supply
         uint256 reserveToRelease = (amount * totalReserveValue) / currentSupply;
 
-        // Update reserve tracking
-        totalReserveValue -= reserveToRelease;
-
-        // Burn tokens
+        // EFFECTS (Part 1): Burn tokens first
+        // This calls _update() which may make external call to compliance oracle
         _burn(msg.sender, amount);
 
+        // EFFECTS (Part 2): Update reserve tracking AFTER burn succeeds
+        // If _burn reverts (e.g., compliance check fails), this line is never reached
+        totalReserveValue -= reserveToRelease;
+
+        // INTERACTIONS: Emit event
         emit TokensBurned(
             msg.sender,
             amount,
@@ -436,8 +453,14 @@ contract MeridianStablecoin is
         if (isBlacklisted[to]) revert RecipientBlacklisted();
 
         // Call compliance oracle if configured (skip for mint/burn where from/to is zero)
+        // HIGH-002: Use gas limit and try/catch to prevent DoS from malicious oracle
         if (complianceOracle != address(0) && from != address(0) && to != address(0)) {
-            if (!IComplianceOracle(complianceOracle).isTransferAllowed(from, to, amount)) {
+            try IComplianceOracle(complianceOracle).isTransferAllowed{gas: 100000}(from, to, amount) returns (bool allowed) {
+                if (!allowed) {
+                    revert TransferNotCompliant();
+                }
+            } catch {
+                // Oracle call failed - fail closed for security (reject transfer)
                 revert TransferNotCompliant();
             }
         }
@@ -450,7 +473,10 @@ contract MeridianStablecoin is
      * @param newOracle Address of the new compliance oracle (or address(0) to disable)
      */
     function setComplianceOracle(address newOracle) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        address oldOracle = complianceOracle;
         complianceOracle = newOracle;
+        // HIGH-001: Emit event for critical parameter update
+        emit ComplianceOracleUpdated(oldOracle, newOracle);
     }
 
     // ============ View Functions ============
@@ -500,5 +526,14 @@ contract MeridianStablecoin is
             basketConfig.isActive
         );
     }
+
+    // ============ Storage Gap ============
+
+    /**
+     * @dev Reserved storage space for future upgrades
+     * @dev MED-007: Prevents storage collision when adding new state variables
+     * See: https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[50] private __gap;
 }
 
