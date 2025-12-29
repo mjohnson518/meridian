@@ -1,13 +1,14 @@
 //! Oracle price feed handlers
 
-use crate::error::ApiError;
+use crate::error::{ApiError, handle_db_error};
 use crate::models::*;
 use crate::state::AppState;
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use chrono::Utc;
 use ethers::types::Address;
 use meridian_db::{InsertPriceRequest, PriceRepository};
 use rust_decimal::Decimal;
+use sha2::{Sha256, Digest};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -75,10 +76,15 @@ pub async fn get_price(
 /// Update price for a specific currency pair
 ///
 /// POST /api/v1/oracle/prices/{pair}/update
+/// MED-002: Requires authentication
 pub async fn update_price(
     state: web::Data<Arc<AppState>>,
+    http_req: HttpRequest,
     path: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
+    // MED-002: Verify user is authenticated before allowing price update
+    let _user_id = get_authenticated_user_id(state.db_pool.as_ref(), &http_req).await?;
+
     let pair = path.into_inner();
 
     tracing::info!(pair = %pair, "Updating price from blockchain");
@@ -128,13 +134,23 @@ pub async fn update_price(
 /// Register a new price feed
 ///
 /// POST /api/v1/oracle/feeds
+/// MED-003: Requires admin role
 pub async fn register_price_feed(
     state: web::Data<Arc<AppState>>,
+    http_req: HttpRequest,
     req: web::Json<RegisterFeedRequest>,
 ) -> Result<HttpResponse, ApiError> {
+    // MED-003: Verify user is authenticated AND has admin role
+    let user = get_authenticated_user_with_role(state.db_pool.as_ref(), &http_req).await?;
+    if user.role != "admin" {
+        tracing::warn!(user_id = user.id, role = %user.role, "Unauthorized price feed registration attempt");
+        return Err(ApiError::Forbidden("Admin role required to register price feeds".to_string()));
+    }
+
     tracing::info!(
         pair = %req.pair,
         address = %req.chainlink_address,
+        admin_id = user.id,
         "Registering price feed"
     );
 
@@ -151,4 +167,59 @@ pub async fn register_price_feed(
         "pair": req.pair,
         "address": req.chainlink_address
     })))
+}
+
+/// User info returned from authentication
+struct AuthenticatedUser {
+    id: i32,
+    role: String,
+}
+
+/// Extract authenticated user ID from request token
+/// MED-002: Helper function for authentication checks
+async fn get_authenticated_user_id(
+    pool: &sqlx::PgPool,
+    req: &HttpRequest,
+) -> Result<i32, ApiError> {
+    let user = get_authenticated_user_with_role(pool, req).await?;
+    Ok(user.id)
+}
+
+/// Extract authenticated user with role from request token
+/// MED-003: Helper function for role-based access control
+async fn get_authenticated_user_with_role(
+    pool: &sqlx::PgPool,
+    req: &HttpRequest,
+) -> Result<AuthenticatedUser, ApiError> {
+    let token = req
+        .headers()
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
+
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    let token_hash = hex::encode(hasher.finalize());
+
+    let session = sqlx::query!(
+        r#"
+        SELECT s.user_id, u.role
+        FROM sessions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.access_token = $1 AND s.expires_at > NOW()
+        "#,
+        token_hash
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| handle_db_error(e, "oracle"))?;
+
+    match session {
+        Some(s) => Ok(AuthenticatedUser {
+            id: s.user_id,
+            role: s.role,
+        }),
+        None => Err(ApiError::Unauthorized("Invalid or expired token".to_string())),
+    }
 }
