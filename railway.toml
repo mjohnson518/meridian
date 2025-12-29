@@ -1,0 +1,12 @@
+[build]
+builder = "nixpacks"
+buildCommand = "cargo build --release --bin meridian-api"
+
+[deploy]
+startCommand = "./target/release/meridian-api"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
+
+[[services]]
+name = "meridian-api"
+

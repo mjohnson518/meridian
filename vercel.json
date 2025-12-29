@@ -1,0 +1,54 @@
+{
+  "buildCommand": "cd meridian-frontend && npm run build",
+  "outputDirectory": "meridian-frontend/.next",
+  "framework": "nextjs",
+  "installCommand": "cd meridian-frontend && npm install",
+  "devCommand": "cd meridian-frontend && npm run dev",
+  "env": {
+    "NEXT_PUBLIC_CHAIN_ID": "1",
+    "NEXT_PUBLIC_TESTNET_CHAIN_ID": "11155111"
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains; preload"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.railway.app wss://*.railway.app https://*.alchemy.com https://*.walletconnect.com https://*.infura.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/portal",
+      "permanent": false
+    }
+  ]
+}
+
