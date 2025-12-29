@@ -1,6 +1,6 @@
 //! x402 Agent payment handlers
 
-use crate::error::ApiError;
+use crate::error::{ApiError, handle_db_error};
 use crate::state::AppState;
 use actix_web::{web, HttpRequest, HttpResponse};
 use rust_decimal::Decimal;
@@ -89,7 +89,7 @@ pub async fn create_agent(
     let user = sqlx::query!("SELECT kyc_status FROM users WHERE id = $1", req.user_id)
         .fetch_optional(state.db_pool.as_ref())
         .await
-        .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+        .map_err(|e| handle_db_error(e, "agents"))?;
 
     let user = match user {
         Some(u) => u,
@@ -154,8 +154,10 @@ pub async fn create_agent(
 }
 
 /// POST /api/v1/agents/pay
+/// SECURITY: Requires authentication and verifies user owns the agent
 pub async fn agent_pay(
     state: web::Data<Arc<AppState>>,
+    http_req: HttpRequest,
     req: web::Json<AgentPaymentRequest>,
 ) -> Result<HttpResponse, ApiError> {
     tracing::info!(
@@ -166,8 +168,22 @@ pub async fn agent_pay(
         "Agent payment request"
     );
 
+    // SECURITY: Verify the authenticated user owns this agent
+    let auth_user_id = get_authenticated_user_id(state.db_pool.as_ref(), &http_req).await?;
+
     // Verify API key
     let agent = verify_agent_api_key(state.db_pool.as_ref(), &req.agent_id, &req.api_key).await?;
+
+    // SECURITY: Ensure authenticated user owns the agent
+    if agent.user_id != auth_user_id {
+        tracing::warn!(
+            auth_user_id = auth_user_id,
+            agent_owner_id = agent.user_id,
+            agent_id = %req.agent_id,
+            "Agent payment rejected: user does not own agent"
+        );
+        return Err(ApiError::Forbidden("You do not own this agent".to_string()));
+    }
 
     if !agent.is_active {
         return Err(ApiError::Forbidden("Agent wallet is inactive".to_string()));
@@ -321,7 +337,7 @@ pub async fn list_agents(
     )
     .fetch_all(state.db_pool.as_ref())
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "agents"))?;
 
     let mut responses = Vec::new();
     for agent in agents {
@@ -362,7 +378,7 @@ pub async fn get_agent_transactions(
     )
     .fetch_optional(state.db_pool.as_ref())
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "agents"))?;
 
     match agent_owner {
         Some(owner) if owner.user_id == auth_user_id => {},
@@ -382,7 +398,7 @@ pub async fn get_agent_transactions(
     )
     .fetch_all(state.db_pool.as_ref())
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "agents"))?;
 
     let responses: Vec<serde_json::Value> = transactions
         .into_iter()
@@ -415,7 +431,7 @@ async fn verify_agent_api_key(
 
     let agent = sqlx::query!(
         r#"
-        SELECT agent_id, wallet_address, spending_limit_daily, 
+        SELECT user_id, agent_id, wallet_address, spending_limit_daily,
                spending_limit_transaction, is_active
         FROM agent_wallets
         WHERE agent_id = $1 AND api_key_hash = $2
@@ -425,10 +441,11 @@ async fn verify_agent_api_key(
     )
     .fetch_optional(pool)
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "agents"))?;
 
     match agent {
         Some(a) => Ok(AgentWallet {
+            user_id: a.user_id,
             agent_id: a.agent_id,
             wallet_address: a.wallet_address,
             spending_limit_daily: a.spending_limit_daily,
@@ -453,7 +470,7 @@ async fn get_daily_spent(pool: &PgPool, agent_id: &str) -> Result<Decimal, ApiEr
     )
     .fetch_all(pool)
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "agents"))?;
 
     let mut total = Decimal::ZERO;
     for tx in transactions {
@@ -564,6 +581,7 @@ fn is_valid_ethereum_address(address: &str) -> bool {
 }
 
 struct AgentWallet {
+    user_id: i32,
     agent_id: String,
     wallet_address: String,
     spending_limit_daily: String,
@@ -597,7 +615,7 @@ async fn get_authenticated_user_id(
     )
     .fetch_optional(pool)
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "agents"))?;
 
     match session {
         Some(s) => Ok(s.user_id),

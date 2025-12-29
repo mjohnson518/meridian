@@ -1,6 +1,6 @@
 //! KYC/AML handlers
 
-use crate::error::ApiError;
+use crate::error::{ApiError, handle_db_error};
 use crate::state::AppState;
 use actix_web::{web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
@@ -113,7 +113,7 @@ pub async fn get_kyc_status(
     let user_status = sqlx::query!("SELECT kyc_status FROM users WHERE id = $1", user_id)
         .fetch_optional(state.db_pool.as_ref())
         .await
-        .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+        .map_err(|e| handle_db_error(e, "kyc"))?;
 
     let user_status = match user_status {
         Some(status) => status.kyc_status,
@@ -133,7 +133,7 @@ pub async fn get_kyc_status(
     )
     .fetch_optional(state.db_pool.as_ref())
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "kyc"))?;
 
     let response = if let Some(app) = application {
         KycStatusResponse {
@@ -173,7 +173,7 @@ pub async fn approve_kyc(
     let application = sqlx::query!("SELECT user_id FROM kyc_applications WHERE id = $1", app_id)
         .fetch_optional(state.db_pool.as_ref())
         .await
-        .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+        .map_err(|e| handle_db_error(e, "kyc"))?;
 
     let application = match application {
         Some(app) => app,
@@ -191,7 +191,7 @@ pub async fn approve_kyc(
     )
     .execute(state.db_pool.as_ref())
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "kyc"))?;
 
     // Update user KYC status
     sqlx::query!(
@@ -200,7 +200,7 @@ pub async fn approve_kyc(
     )
     .execute(state.db_pool.as_ref())
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "kyc"))?;
 
     tracing::info!(application_id = app_id, user_id = application.user_id, "KYC approved");
 
@@ -233,7 +233,7 @@ pub async fn reject_kyc(
     let application = sqlx::query!("SELECT user_id FROM kyc_applications WHERE id = $1", app_id)
         .fetch_optional(state.db_pool.as_ref())
         .await
-        .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+        .map_err(|e| handle_db_error(e, "kyc"))?;
 
     let application = match application {
         Some(app) => app,
@@ -252,7 +252,7 @@ pub async fn reject_kyc(
     )
     .execute(state.db_pool.as_ref())
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "kyc"))?;
 
     // Update user status (log error but don't fail rejection)
     if let Err(e) = sqlx::query!(
@@ -304,7 +304,7 @@ async fn get_authenticated_user(
     )
     .fetch_optional(state.db_pool.as_ref())
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "kyc"))?;
 
     match session {
         Some(s) => Ok(AuthenticatedUser {
@@ -345,7 +345,7 @@ async fn verify_admin(
     )
     .fetch_optional(state.db_pool.as_ref())
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "kyc"))?;
 
     match session {
         Some(s) if s.role == "ADMIN" => Ok(()),

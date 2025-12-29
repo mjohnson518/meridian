@@ -97,3 +97,17 @@ impl From<DbError> for ApiError {
         ApiError::DatabaseError(err)
     }
 }
+
+/// Helper function to handle database errors safely.
+/// Logs the actual error server-side but returns a generic message to clients.
+/// This prevents information disclosure of database structure/constraints.
+pub fn handle_db_error<E: std::fmt::Display>(error: E, context: &str) -> ApiError {
+    // Log the actual error server-side for debugging
+    tracing::error!(
+        error = %error,
+        context = %context,
+        "Database operation failed"
+    );
+    // Return generic error to client - never expose internal details
+    ApiError::InternalError("A database error occurred. Please try again later.".to_string())
+}
