@@ -20,6 +20,10 @@ contract MeridianStablecoinTest is Test {
     address public user = address(0x4);
     address public complianceOracle = address(0x5);
 
+    // Decimal scaling helpers
+    uint256 constant TOKEN_UNIT = 10 ** 6;    // 6 decimals for tokens
+    uint256 constant RESERVE_UNIT = 10 ** 2;  // 2 decimals for reserves
+
     function setUp() public {
         // Deploy implementation
         implementation = new MeridianStablecoin();
@@ -117,10 +121,12 @@ contract MeridianStablecoinTest is Test {
     }
 
     function test_RevertMintInsufficientReserve() public {
+        // Use proper decimal formats: TOKEN_UNIT (6 decimals), RESERVE_UNIT (2 decimals)
+        // 1000 tokens = 1000 * 10^6, 999 USD reserves = 999 * 10^2 = 99900
         MeridianStablecoin.MintRequest memory request = MeridianStablecoin.MintRequest({
             recipient: user,
-            amount: 1000 ether,
-            reserveValue: 999 ether, // Less than amount
+            amount: 1000 * TOKEN_UNIT,
+            reserveValue: 999 * RESERVE_UNIT, // Less than amount when normalized
             deadline: block.timestamp + 1 hours,
             nonce: 0
         });
@@ -402,11 +408,12 @@ contract MeridianStablecoinTest is Test {
     // ============ Reserve Ratio Tests ============
 
     function test_GetReserveRatio() public {
-        // Mint with exact 1:1 backing
+        // Mint with exact 1:1 backing using proper decimal formats
+        // 1000 tokens (6 decimals) backed by 1000 USD (2 decimals)
         MeridianStablecoin.MintRequest memory request = MeridianStablecoin.MintRequest({
             recipient: user,
-            amount: 1000 ether,
-            reserveValue: 1000 ether,
+            amount: 1000 * TOKEN_UNIT,
+            reserveValue: 1000 * RESERVE_UNIT,
             deadline: block.timestamp + 1 hours,
             nonce: 0
         });
@@ -419,11 +426,12 @@ contract MeridianStablecoinTest is Test {
     }
 
     function test_GetReserveRatioOverCollateralized() public {
-        // Mint with 120% backing
+        // Mint with 120% backing using proper decimal formats
+        // 1000 tokens (6 decimals) backed by 1200 USD (2 decimals)
         MeridianStablecoin.MintRequest memory request = MeridianStablecoin.MintRequest({
             recipient: user,
-            amount: 1000 ether,
-            reserveValue: 1200 ether,
+            amount: 1000 * TOKEN_UNIT,
+            reserveValue: 1200 * RESERVE_UNIT,
             deadline: block.timestamp + 1 hours,
             nonce: 0
         });

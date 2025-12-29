@@ -566,9 +566,10 @@ fn generate_wallet_address(agent_id: &str) -> Result<String, &'static str> {
     hasher.update(b"_MOCK_WALLET_"); // Add marker to make hash different
     let hash = hasher.finalize();
 
-    // Use 0xDEV prefix to make it obvious this is a dev address
-    // Format: 0xDEV + 36 chars of hash = 42 chars total (valid Ethereum address length)
-    Ok(format!("0xDEV{}", hex::encode(&hash[0..19])))
+    // Use 0xDE prefix for dev addresses (valid hex prefix)
+    // Format: 0xDE + 38 chars of hash = 42 chars total (valid Ethereum address length)
+    // 0xDE (4 chars) + 19 bytes encoded as hex (38 chars) = 42 chars
+    Ok(format!("0xDE{}", hex::encode(&hash[0..19])))
 }
 
 fn is_valid_ethereum_address(address: &str) -> bool {
@@ -692,7 +693,7 @@ mod tests {
 
     #[test]
     fn test_generate_wallet_address_format() {
-        let address = generate_wallet_address("test-agent-id");
+        let address = generate_wallet_address("test-agent-id").expect("should generate address in test");
         assert!(address.starts_with("0x"));
         assert_eq!(address.len(), 42);
         assert!(address[2..].chars().all(|c| c.is_ascii_hexdigit()));
@@ -700,15 +701,15 @@ mod tests {
 
     #[test]
     fn test_generate_wallet_address_deterministic() {
-        let addr1 = generate_wallet_address("same-agent");
-        let addr2 = generate_wallet_address("same-agent");
+        let addr1 = generate_wallet_address("same-agent").expect("should generate address");
+        let addr2 = generate_wallet_address("same-agent").expect("should generate address");
         assert_eq!(addr1, addr2);
     }
 
     #[test]
     fn test_generate_wallet_address_different_for_different_agents() {
-        let addr1 = generate_wallet_address("agent-1");
-        let addr2 = generate_wallet_address("agent-2");
+        let addr1 = generate_wallet_address("agent-1").expect("should generate address");
+        let addr2 = generate_wallet_address("agent-2").expect("should generate address");
         assert_ne!(addr1, addr2);
     }
 }
