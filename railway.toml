@@ -6,6 +6,8 @@ buildCommand = "cargo build --release --bin meridian-api"
 startCommand = "./target/release/meridian-api"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
+healthcheckPath = "/health"
+healthcheckTimeout = 30
 
 [[services]]
 name = "meridian-api"
