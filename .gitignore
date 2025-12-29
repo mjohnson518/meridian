@@ -73,3 +73,41 @@ DESIGN_IMPROVEMENTS.md
 *_DESIGN*.md
 DESIGN_*.md
 TESTING_CHECKLIST.md
+
+# AI Session Artifacts - Prevent clutter
+*_STATUS.md
+*_REPORT.md
+*_SUMMARY.md
+*_COMPLETE.md
+*_VALIDATION.md
+*_IMPLEMENTATION.md
+*_INTEGRATION*.md
+*_BASELINE.md
+*_REVIEW.md
+*_GAP_ANALYSIS.md
+*_LOG.md
+BLOCKERS.md
+PROGRESS.md
+AUDIT_REPORT.md
+GIT_COMMANDS.md
+production_deployment.md
+
+# Exceptions - Keep these documentation files
+!API_IMPLEMENTATION.md
+!README.md
+
+# Session scripts
+ralph-loop.sh
+COMMIT_*.sh
+DEPLOY_*_STAGING.sh
+TEST_*.sh
+
+# IDE specific
+.cursor/
+
+# Misc
+*.tmp
+*.bak
+docs/OPERATIONAL_ROADMAP.md
+docs/30_DAY_LAUNCH_ROADMAP.md
+meridian_issuer_tech_spec.md
