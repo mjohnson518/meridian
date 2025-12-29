@@ -54,16 +54,22 @@ pub async fn create_pool(database_url: &str) -> Result<Pool, DbError> {
         .parse::<PgConnectOptions>()
         .map_err(|e| DbError::ConnectionError(e.to_string()))?;
 
+    // Get max connections from environment or use default
+    let max_connections: u32 = std::env::var("DATABASE_MAX_CONNECTIONS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(20);
+
     let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .min_connections(1)
+        .max_connections(max_connections)
+        .min_connections(2)
         .acquire_timeout(Duration::from_secs(30))
         .idle_timeout(Some(Duration::from_secs(600)))
         .connect_with(options)
         .await
         .map_err(|e| DbError::ConnectionError(e.to_string()))?;
 
-    tracing::info!("Database connection pool created");
+    tracing::info!("Database pool created with max {} connections", max_connections);
 
     Ok(pool)
 }

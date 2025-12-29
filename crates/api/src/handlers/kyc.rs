@@ -2,9 +2,10 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use sha2::{Sha256, Digest};
 use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
@@ -28,8 +29,20 @@ pub struct KycStatusResponse {
 /// POST /api/v1/kyc/submit
 pub async fn submit_kyc(
     state: web::Data<Arc<AppState>>,
+    http_req: HttpRequest,
     req: web::Json<SubmitKycRequest>,
 ) -> Result<HttpResponse, ApiError> {
+    // SECURITY: Verify authenticated user matches the user_id in request
+    let auth_user = get_authenticated_user(&state, &http_req).await?;
+    if auth_user.user_id != req.user_id {
+        tracing::warn!(
+            auth_user_id = auth_user.user_id,
+            requested_user_id = req.user_id,
+            "KYC submission rejected: user_id mismatch"
+        );
+        return Err(ApiError::Forbidden("Cannot submit KYC for another user".to_string()));
+    }
+
     tracing::info!(user_id = req.user_id, "KYC application submitted");
 
     // Combine all data into JSONB
@@ -58,14 +71,16 @@ pub async fn submit_kyc(
         ApiError::InternalError("Failed to submit KYC application".to_string())
     })?;
 
-    // Update user KYC status
-    sqlx::query!(
+    // Update user KYC status (log error but don't fail submission)
+    if let Err(e) = sqlx::query!(
         "UPDATE users SET kyc_status = 'PENDING_REVIEW', updated_at = NOW() WHERE id = $1",
         req.user_id
     )
     .execute(state.db_pool.as_ref())
     .await
-    .ok();
+    {
+        tracing::warn!(user_id = req.user_id, error = %e, "Failed to update user kyc_status");
+    }
 
     tracing::info!(
         application_id = application.id,
@@ -83,9 +98,16 @@ pub async fn submit_kyc(
 /// GET /api/v1/kyc/status/{user_id}
 pub async fn get_kyc_status(
     state: web::Data<Arc<AppState>>,
+    req: HttpRequest,
     user_id: web::Path<i32>,
 ) -> Result<HttpResponse, ApiError> {
     let user_id = user_id.into_inner();
+
+    // Verify authenticated user matches requested user_id (or is admin)
+    let auth_user = get_authenticated_user(&state, &req).await?;
+    if auth_user.user_id != user_id && auth_user.role != "ADMIN" {
+        return Err(ApiError::Forbidden("Cannot access other user's KYC status".to_string()));
+    }
 
     // Get user's KYC status
     let user_status = sqlx::query!("SELECT kyc_status FROM users WHERE id = $1", user_id)
@@ -137,8 +159,12 @@ pub async fn get_kyc_status(
 /// PUT /api/v1/kyc/approve/{application_id}
 pub async fn approve_kyc(
     state: web::Data<Arc<AppState>>,
+    req: HttpRequest,
     application_id: web::Path<i32>,
 ) -> Result<HttpResponse, ApiError> {
+    // Verify caller is an admin
+    verify_admin(&state, &req).await?;
+
     let app_id = application_id.into_inner();
 
     tracing::info!(application_id = app_id, "Approving KYC application");
@@ -188,9 +214,13 @@ pub async fn approve_kyc(
 /// PUT /api/v1/kyc/reject/{application_id}
 pub async fn reject_kyc(
     state: web::Data<Arc<AppState>>,
+    req: HttpRequest,
     application_id: web::Path<i32>,
     reason: web::Json<serde_json::Value>,
 ) -> Result<HttpResponse, ApiError> {
+    // Verify caller is an admin
+    verify_admin(&state, &req).await?;
+
     let app_id = application_id.into_inner();
     let rejection_reason = reason
         .get("reason")
@@ -224,19 +254,103 @@ pub async fn reject_kyc(
     .await
     .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
 
-    // Update user status
-    sqlx::query!(
+    // Update user status (log error but don't fail rejection)
+    if let Err(e) = sqlx::query!(
         "UPDATE users SET kyc_status = 'REJECTED', updated_at = NOW() WHERE id = $1",
         application.user_id
     )
     .execute(state.db_pool.as_ref())
     .await
-    .ok();
+    {
+        tracing::warn!(user_id = application.user_id, error = %e, "Failed to update user kyc_status to REJECTED");
+    }
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "message": "KYC application rejected",
         "application_id": app_id,
         "reason": rejection_reason
     })))
+}
+
+struct AuthenticatedUser {
+    user_id: i32,
+    role: String,
+}
+
+/// Get authenticated user info from request token
+async fn get_authenticated_user(
+    state: &web::Data<Arc<AppState>>,
+    req: &HttpRequest,
+) -> Result<AuthenticatedUser, ApiError> {
+    let token = req
+        .headers()
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
+
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    let token_hash = hex::encode(hasher.finalize());
+
+    let session = sqlx::query!(
+        r#"
+        SELECT s.user_id, u.role
+        FROM sessions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.access_token = $1 AND s.expires_at > NOW()
+        "#,
+        token_hash
+    )
+    .fetch_optional(state.db_pool.as_ref())
+    .await
+    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+
+    match session {
+        Some(s) => Ok(AuthenticatedUser {
+            user_id: s.user_id,
+            role: s.role,
+        }),
+        None => Err(ApiError::Unauthorized("Invalid or expired token".to_string())),
+    }
+}
+
+/// Verify the caller has ADMIN role
+async fn verify_admin(
+    state: &web::Data<Arc<AppState>>,
+    req: &HttpRequest,
+) -> Result<(), ApiError> {
+    // Extract token from Authorization header
+    let token = req
+        .headers()
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
+
+    // Hash token to compare with stored hash
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    let token_hash = hex::encode(hasher.finalize());
+
+    // Look up session and user role
+    let session = sqlx::query!(
+        r#"
+        SELECT u.role
+        FROM sessions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.access_token = $1 AND s.expires_at > NOW()
+        "#,
+        token_hash
+    )
+    .fetch_optional(state.db_pool.as_ref())
+    .await
+    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+
+    match session {
+        Some(s) if s.role == "ADMIN" => Ok(()),
+        Some(_) => Err(ApiError::Forbidden("Admin access required".to_string())),
+        None => Err(ApiError::Unauthorized("Invalid or expired token".to_string())),
+    }
 }
 

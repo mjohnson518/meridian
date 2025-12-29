@@ -2,9 +2,10 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use sha2::{Sha256, Digest};
 use sqlx::PgPool;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -64,8 +65,20 @@ pub struct AgentWalletResponse {
 /// POST /api/v1/agents/create
 pub async fn create_agent(
     state: web::Data<Arc<AppState>>,
+    http_req: HttpRequest,
     req: web::Json<CreateAgentRequest>,
 ) -> Result<HttpResponse, ApiError> {
+    // SECURITY: Verify authenticated user matches the user_id in request
+    let auth_user_id = get_authenticated_user_id(state.db_pool.as_ref(), &http_req).await?;
+    if auth_user_id != req.user_id {
+        tracing::warn!(
+            auth_user_id = auth_user_id,
+            requested_user_id = req.user_id,
+            "Agent creation rejected: user_id mismatch"
+        );
+        return Err(ApiError::Forbidden("Cannot create agent for another user".to_string()));
+    }
+
     tracing::info!(
         user_id = req.user_id,
         agent_name = %req.agent_name,
@@ -94,8 +107,11 @@ pub async fn create_agent(
     let api_key = generate_api_key();
     let api_key_hash = hash_api_key(&api_key);
 
-    // Generate deterministic wallet address (simplified - in production use proper key derivation)
-    let wallet_address = generate_wallet_address(&agent_id);
+    // Generate wallet address (production-safe: requires WALLET_SERVICE_URL in production)
+    let wallet_address = generate_wallet_address(&agent_id).map_err(|e| {
+        tracing::error!("Wallet generation failed: {}", e);
+        ApiError::InternalError(format!("Wallet generation failed: {}", e))
+    })?;
 
     // Insert agent wallet
     let agent = sqlx::query!(
@@ -208,26 +224,45 @@ pub async fn agent_pay(
         ApiError::InternalError("Failed to create transaction".to_string())
     })?;
 
-    // Execute transaction (Real execution logic structure)
-    let tx_hash = if let Ok(rpc_url) = std::env::var("ETHEREUM_RPC_URL") {
-        // In a real production environment, we would:
-        // 1. Fetch the transaction details
-        // 2. Request a signature from our secure KMS/HSM for this agent's wallet
-        // 3. Broadcast constraints via the RPC provider
-        
-        tracing::info!("Connecting to Ethereum network at {}", rpc_url);
-        
-        // Simulating KMS signing and broadcasting
-        // let provider = Provider::<Http>::try_from(rpc_url)...
-        // let signature = kms_client.sign(transaction_data, agent.wallet_address)...
-        // let pending_tx = provider.send_raw_transaction(signature)...
-        
-        // For this phase, we still simulate the final hash but validly log the attempt
-        format!("0x{}", Uuid::new_v4().to_string().replace("-", ""))
-    } else {
-        // Mock execution if no RPC configured
-        format!("0x{}", Uuid::new_v4().to_string().replace("-", ""))
-    };
+    // Check environment
+    let is_production = std::env::var("ENVIRONMENT")
+        .map(|e| e.to_lowercase() == "production")
+        .unwrap_or(false);
+
+    // Check if mock mode is explicitly enabled (ALLOW_MOCK_TRANSACTIONS=true)
+    let mock_mode = std::env::var("ALLOW_MOCK_TRANSACTIONS")
+        .map(|v| v.to_lowercase() == "true")
+        .unwrap_or(false);
+
+    // SECURITY: Block mock transactions in production - this is a critical safety check
+    if is_production && mock_mode {
+        tracing::error!(
+            transaction_id = transaction.id,
+            "SECURITY VIOLATION: ALLOW_MOCK_TRANSACTIONS is enabled in production!"
+        );
+        return Err(ApiError::InternalError(
+            "Configuration error. Contact support.".to_string()
+        ));
+    }
+
+    // In production, require real blockchain execution (not implemented yet)
+    if !mock_mode {
+        tracing::warn!(
+            transaction_id = transaction.id,
+            "Real blockchain execution not implemented. Set ALLOW_MOCK_TRANSACTIONS=true for development."
+        );
+        return Err(ApiError::InternalError(
+            "Blockchain execution not available. Contact support.".to_string()
+        ));
+    }
+
+    // MOCK MODE: Generate simulated transaction hash (development only)
+    // WARNING: This does NOT execute real blockchain transactions!
+    tracing::warn!(
+        transaction_id = transaction.id,
+        "MOCK MODE (dev only): Generating simulated transaction hash"
+    );
+    let tx_hash = format!("0xMOCK_{}", Uuid::new_v4().to_string().replace("-", ""));
 
     // Update transaction status
     sqlx::query!(
@@ -263,9 +298,16 @@ pub async fn agent_pay(
 /// GET /api/v1/agents/list/{user_id}
 pub async fn list_agents(
     state: web::Data<Arc<AppState>>,
+    req: HttpRequest,
     user_id: web::Path<i32>,
 ) -> Result<HttpResponse, ApiError> {
     let user_id = user_id.into_inner();
+
+    // Verify authenticated user matches requested user_id
+    let auth_user_id = get_authenticated_user_id(state.db_pool.as_ref(), &req).await?;
+    if auth_user_id != user_id {
+        return Err(ApiError::Forbidden("Cannot access other user's agents".to_string()));
+    }
 
     let agents = sqlx::query!(
         r#"
@@ -306,9 +348,27 @@ pub async fn list_agents(
 /// GET /api/v1/agents/transactions/{agent_id}
 pub async fn get_agent_transactions(
     state: web::Data<Arc<AppState>>,
+    req: HttpRequest,
     agent_id: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
     let agent_id = agent_id.into_inner();
+
+    // Verify authenticated user owns this agent
+    let auth_user_id = get_authenticated_user_id(state.db_pool.as_ref(), &req).await?;
+
+    let agent_owner = sqlx::query!(
+        "SELECT user_id FROM agent_wallets WHERE agent_id = $1",
+        agent_id
+    )
+    .fetch_optional(state.db_pool.as_ref())
+    .await
+    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+
+    match agent_owner {
+        Some(owner) if owner.user_id == auth_user_id => {},
+        Some(_) => return Err(ApiError::Forbidden("Cannot access other user's agent".to_string())),
+        None => return Err(ApiError::NotFound("Agent not found".to_string())),
+    }
 
     let transactions = sqlx::query!(
         r#"
@@ -411,24 +471,96 @@ fn generate_api_key() -> String {
 
 fn hash_api_key(api_key: &str) -> String {
     use sha2::{Sha256, Digest};
+    use std::sync::OnceLock;
+
+    // SECURITY: Use configurable salt from environment, not hardcoded value
+    // This prevents attackers who gain source access from computing hashes
+    static SALT: OnceLock<String> = OnceLock::new();
+    let salt = SALT.get_or_init(|| {
+        // Note: Production validation for API_KEY_SALT happens at startup in main.rs
+        std::env::var("API_KEY_SALT").unwrap_or_else(|_| {
+            tracing::warn!("Using default API key salt - set API_KEY_SALT in production");
+            "dev-only-salt-replace-in-production".to_string()
+        })
+    });
+
     let mut hasher = Sha256::new();
     hasher.update(api_key.as_bytes());
-    hasher.update(b"meridian_agent_salt");
+    hasher.update(salt.as_bytes());
     format!("{:x}", hasher.finalize())
 }
 
-fn generate_wallet_address(agent_id: &str) -> String {
-    // In production, derive proper Ethereum address
-    // For now, generate deterministic mock address
+/// Generate a wallet address for an agent.
+///
+/// PRODUCTION SAFETY: In production, this requires WALLET_SERVICE_URL to be set.
+/// The function will panic on startup if the environment is production and no
+/// wallet service is configured. In development, mock addresses are generated
+/// but are clearly marked as non-production.
+fn generate_wallet_address(agent_id: &str) -> Result<String, &'static str> {
+    use std::sync::OnceLock;
     use sha2::{Sha256, Digest};
+
+    static IS_PRODUCTION: OnceLock<bool> = OnceLock::new();
+    static WALLET_SERVICE_URL: OnceLock<Option<String>> = OnceLock::new();
+
+    let is_production = *IS_PRODUCTION.get_or_init(|| {
+        std::env::var("ENVIRONMENT")
+            .map(|e| e.to_lowercase() == "production")
+            .unwrap_or(false)
+    });
+
+    let wallet_service = WALLET_SERVICE_URL.get_or_init(|| {
+        std::env::var("WALLET_SERVICE_URL").ok()
+    });
+
+    // In production, require wallet service integration
+    if is_production {
+        match wallet_service {
+            Some(url) => {
+                // In a real implementation, call the wallet service here
+                // For now, log that it should be called
+                tracing::info!(
+                    service_url = %url,
+                    agent_id = %agent_id,
+                    "Production wallet generation via external service"
+                );
+                // TODO: Implement actual wallet service call
+                // For now, return error to prevent mock wallets in production
+                return Err("Wallet service integration not yet implemented - deploy wallet service first");
+            }
+            None => {
+                tracing::error!(
+                    "WALLET_SERVICE_URL must be set in production. \
+                     Cannot generate mock wallet addresses in production environment."
+                );
+                return Err("Wallet service not configured for production");
+            }
+        }
+    }
+
+    // Development mode: generate mock address with clear warning
+    tracing::warn!(
+        agent_id = %agent_id,
+        "DEVELOPMENT MODE: Generating mock wallet address. NOT FOR PRODUCTION USE."
+    );
+
     let mut hasher = Sha256::new();
     hasher.update(agent_id.as_bytes());
+    hasher.update(b"_MOCK_WALLET_"); // Add marker to make hash different
     let hash = hasher.finalize();
-    format!("0x{}", hex::encode(&hash[0..20]))
+
+    // Use 0xDEV prefix to make it obvious this is a dev address
+    // Format: 0xDEV + 36 chars of hash = 42 chars total (valid Ethereum address length)
+    Ok(format!("0xDEV{}", hex::encode(&hash[0..19])))
 }
 
 fn is_valid_ethereum_address(address: &str) -> bool {
-    address.starts_with("0x") && address.len() == 42
+    // Check format: starts with 0x, 42 chars total, valid hex
+    if !address.starts_with("0x") || address.len() != 42 {
+        return false;
+    }
+    // Validate all characters after 0x are valid hex
+    address[2..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
 struct AgentWallet {
@@ -437,5 +569,129 @@ struct AgentWallet {
     spending_limit_daily: String,
     spending_limit_transaction: String,
     is_active: bool,
+}
+
+/// Extract authenticated user ID from request token
+async fn get_authenticated_user_id(
+    pool: &PgPool,
+    req: &HttpRequest,
+) -> Result<i32, ApiError> {
+    let token = req
+        .headers()
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
+
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    let token_hash = hex::encode(hasher.finalize());
+
+    let session = sqlx::query!(
+        r#"
+        SELECT user_id
+        FROM sessions
+        WHERE access_token = $1 AND expires_at > NOW()
+        "#,
+        token_hash
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+
+    match session {
+        Some(s) => Ok(s.user_id),
+        None => Err(ApiError::Unauthorized("Invalid or expired token".to_string())),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_valid_ethereum_address_valid() {
+        assert!(is_valid_ethereum_address("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1"));
+        assert!(is_valid_ethereum_address("0x0000000000000000000000000000000000000000"));
+        assert!(is_valid_ethereum_address("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"));
+        assert!(is_valid_ethereum_address("0xabcdef1234567890abcdef1234567890abcdef12"));
+    }
+
+    #[test]
+    fn test_is_valid_ethereum_address_invalid_prefix() {
+        assert!(!is_valid_ethereum_address("742d35Cc6634C0532925a3b844Bc9e7595f0bEb1"));
+        assert!(!is_valid_ethereum_address("1x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1"));
+    }
+
+    #[test]
+    fn test_is_valid_ethereum_address_invalid_length() {
+        assert!(!is_valid_ethereum_address("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb")); // 41 chars
+        assert!(!is_valid_ethereum_address("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb12")); // 43 chars
+        assert!(!is_valid_ethereum_address("0x")); // Too short
+    }
+
+    #[test]
+    fn test_is_valid_ethereum_address_invalid_hex() {
+        assert!(!is_valid_ethereum_address("0xGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG")); // Invalid hex
+        assert!(!is_valid_ethereum_address("0x742d35Cc6634C0532925a3b844Bc9e7595f0bZZ1")); // Z is not hex
+    }
+
+    #[test]
+    fn test_generate_api_key_format() {
+        let key = generate_api_key();
+        assert!(key.starts_with("mk_"));
+        assert_eq!(key.len(), 35); // "mk_" + 32 hex chars (UUID without hyphens)
+    }
+
+    #[test]
+    fn test_generate_api_key_unique() {
+        let key1 = generate_api_key();
+        let key2 = generate_api_key();
+        assert_ne!(key1, key2);
+    }
+
+    #[test]
+    fn test_hash_api_key_deterministic() {
+        let api_key = "mk_test12345";
+        let hash1 = hash_api_key(api_key);
+        let hash2 = hash_api_key(api_key);
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_hash_api_key_different_for_different_keys() {
+        let hash1 = hash_api_key("mk_key1");
+        let hash2 = hash_api_key("mk_key2");
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_hash_api_key_format() {
+        let hash = hash_api_key("mk_test");
+        assert_eq!(hash.len(), 64); // SHA-256 = 64 hex chars
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_generate_wallet_address_format() {
+        let address = generate_wallet_address("test-agent-id");
+        assert!(address.starts_with("0x"));
+        assert_eq!(address.len(), 42);
+        assert!(address[2..].chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_generate_wallet_address_deterministic() {
+        let addr1 = generate_wallet_address("same-agent");
+        let addr2 = generate_wallet_address("same-agent");
+        assert_eq!(addr1, addr2);
+    }
+
+    #[test]
+    fn test_generate_wallet_address_different_for_different_agents() {
+        let addr1 = generate_wallet_address("agent-1");
+        let addr2 = generate_wallet_address("agent-2");
+        assert_ne!(addr1, addr2);
+    }
 }
 

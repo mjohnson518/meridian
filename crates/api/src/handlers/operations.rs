@@ -2,9 +2,10 @@
 
 use crate::error::ApiError;
 use crate::state::AppState;
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use sha2::{Sha256, Digest};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -47,8 +48,20 @@ const RESERVE_BUFFER_PERCENT: i64 = 2; // 2% over-collateralization
 /// POST /api/v1/operations/mint
 pub async fn mint(
     state: web::Data<Arc<AppState>>,
+    http_req: HttpRequest,
     req: web::Json<MintRequest>,
 ) -> Result<HttpResponse, ApiError> {
+    // SECURITY: Verify authenticated user matches the user_id in request
+    let auth_user_id = get_authenticated_user_id(state.db_pool.as_ref(), &http_req).await?;
+    if auth_user_id != req.user_id {
+        tracing::warn!(
+            auth_user_id = auth_user_id,
+            requested_user_id = req.user_id,
+            "Mint request rejected: user_id mismatch"
+        );
+        return Err(ApiError::Forbidden("Cannot mint for another user".to_string()));
+    }
+
     tracing::info!(
         user_id = req.user_id,
         currency = %req.currency,
@@ -134,8 +147,20 @@ pub async fn mint(
 /// POST /api/v1/operations/burn
 pub async fn burn(
     state: web::Data<Arc<AppState>>,
+    http_req: HttpRequest,
     req: web::Json<MintRequest>, // Same structure as mint
 ) -> Result<HttpResponse, ApiError> {
+    // SECURITY: Verify authenticated user matches the user_id in request
+    let auth_user_id = get_authenticated_user_id(state.db_pool.as_ref(), &http_req).await?;
+    if auth_user_id != req.user_id {
+        tracing::warn!(
+            auth_user_id = auth_user_id,
+            requested_user_id = req.user_id,
+            "Burn request rejected: user_id mismatch"
+        );
+        return Err(ApiError::Forbidden("Cannot burn for another user".to_string()));
+    }
+
     tracing::info!(
         user_id = req.user_id,
         currency = %req.currency,
@@ -220,9 +245,16 @@ pub async fn burn(
 /// GET /api/v1/operations/transactions/{user_id}
 pub async fn get_transactions(
     state: web::Data<Arc<AppState>>,
+    req: HttpRequest,
     user_id: web::Path<i32>,
 ) -> Result<HttpResponse, ApiError> {
     let user_id = user_id.into_inner();
+
+    // Verify authenticated user matches requested user_id
+    let auth_user_id = get_authenticated_user_id(state.db_pool.as_ref(), &req).await?;
+    if auth_user_id != user_id {
+        return Err(ApiError::Forbidden("Cannot access other user's transactions".to_string()));
+    }
 
     let transactions = sqlx::query!(
         r#"
@@ -282,6 +314,29 @@ async fn get_fx_rate(
     }
 
     // 2. Fallback to hardcoded rates (for dev or if oracle fails)
+    // SECURITY: These rates are potentially stale and should not be used in production
+    let is_production = std::env::var("ENVIRONMENT")
+        .map(|e| e.to_lowercase() == "production")
+        .unwrap_or(false);
+
+    if is_production {
+        tracing::error!(
+            currency = currency,
+            "CRITICAL: Using fallback FX rates in production! Oracle is unavailable."
+        );
+        // In strict production mode, fail rather than use stale rates
+        if std::env::var("STRICT_FX_RATES").map(|v| v == "true").unwrap_or(false) {
+            return Err(ApiError::InternalError(
+                "FX rate oracle unavailable. Cannot use fallback rates in strict mode.".to_string()
+            ));
+        }
+    }
+
+    tracing::warn!(
+        currency = currency,
+        "Using FALLBACK FX rates - these may be stale. Last updated: 2024-01-01"
+    );
+
     let rate = match currency {
         "EUR" => "1.09",
         "GBP" => "1.22",
@@ -294,5 +349,39 @@ async fn get_fx_rate(
 
     Decimal::from_str(rate)
         .map_err(|_| ApiError::InternalError("Invalid FX rate".to_string()))
+}
+
+/// Extract authenticated user ID from request token
+async fn get_authenticated_user_id(
+    pool: &sqlx::PgPool,
+    req: &HttpRequest,
+) -> Result<i32, ApiError> {
+    let token = req
+        .headers()
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
+
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    let token_hash = hex::encode(hasher.finalize());
+
+    let session = sqlx::query!(
+        r#"
+        SELECT user_id
+        FROM sessions
+        WHERE access_token = $1 AND expires_at > NOW()
+        "#,
+        token_hash
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+
+    match session {
+        Some(s) => Ok(s.user_id),
+        None => Err(ApiError::Unauthorized("Invalid or expired token".to_string())),
+    }
 }
 

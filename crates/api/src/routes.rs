@@ -1,19 +1,31 @@
 //! API route configuration
 
 use crate::handlers;
+use actix_governor::{Governor, GovernorConfigBuilder};
 use actix_web::web;
 
 /// Configure all API routes
 pub fn configure(cfg: &mut web::ServiceConfig) {
+    // Stricter rate limiting for auth endpoints: 5 requests per minute per IP
+    // This prevents brute-force attacks while allowing legitimate retries
+    let auth_rate_limit = GovernorConfigBuilder::default()
+        .per_second(1)  // 1 token per second
+        .burst_size(5)  // Max 5 requests burst (covers quick retries)
+        .finish()
+        .expect("Failed to build auth rate limiter config");
+
     cfg
-        // Health check
+        // Health check and metrics
         .route("/health", web::get().to(handlers::health_check))
-        // Authentication endpoints
+        .route("/metrics", web::get().to(handlers::metrics))
+        // Authentication endpoints with stricter rate limiting
         .service(
             web::scope("/api/v1/auth")
+                .wrap(Governor::new(&auth_rate_limit))
                 .route("/login", web::post().to(handlers::login))
                 .route("/register", web::post().to(handlers::register))
-                .route("/verify", web::get().to(handlers::verify)),
+                .route("/verify", web::get().to(handlers::verify))
+                .route("/refresh", web::post().to(handlers::refresh_token)),
         )
         // KYC endpoints
         .service(

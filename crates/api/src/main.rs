@@ -9,7 +9,8 @@ mod routes;
 mod state;
 
 use actix_cors::Cors;
-use actix_web::{middleware::Logger, web, App, HttpServer};
+use actix_governor::{Governor, GovernorConfigBuilder};
+use actix_web::{middleware::{DefaultHeaders, Logger}, web, App, HttpServer};
 use meridian_db::{create_pool, run_migrations};
 use state::AppState;
 use std::sync::Arc;
@@ -51,16 +52,98 @@ async fn main() -> std::io::Result<()> {
     tracing::info!("Application state initialized");
     tracing::info!("Server starting at http://{}:{}", host, port);
 
+    // Get CORS allowed origins from environment
+    let cors_origins = std::env::var("CORS_ALLOWED_ORIGINS")
+        .unwrap_or_else(|_| "http://localhost:3000".to_string());
+
+    // Security: Validate CORS origins - reject wildcards in production
+    let is_production = std::env::var("ENVIRONMENT")
+        .map(|e| e.to_lowercase() == "production")
+        .unwrap_or(false);
+
+    if is_production && cors_origins.contains('*') {
+        panic!("SECURITY: Wildcard CORS origins (*) are not allowed in production");
+    }
+
+    // Validate required production environment variables at startup
+    if is_production {
+        if std::env::var("API_KEY_SALT").is_err() {
+            panic!("SECURITY: API_KEY_SALT must be set in production");
+        }
+        if std::env::var("WALLET_SERVICE_URL").is_err() {
+            tracing::warn!(
+                "WALLET_SERVICE_URL not set - agent wallet creation will fail in production"
+            );
+        }
+        tracing::info!("Production security checks passed");
+    }
+
+    tracing::info!("CORS allowed origins: {}", cors_origins);
+
+    // Configure rate limiting: ~100 requests per minute per IP
+    // per_second(2) = 2 tokens/sec = 120/min, burst_size(10) = max burst
+    let governor_config = GovernorConfigBuilder::default()
+        .per_second(2)
+        .burst_size(10)
+        .finish()
+        .expect("Failed to build rate limiter config");
+
+    tracing::info!("Rate limiting enabled: ~100 requests/minute per IP");
+
+    // Configure request size limits
+    let json_limit = std::env::var("MAX_JSON_PAYLOAD_SIZE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(256 * 1024); // Default 256KB
+
+    tracing::info!("JSON payload limit: {} bytes", json_limit);
+
     // Start HTTP server
     HttpServer::new(move || {
-        let cors = Cors::default()
-            .allow_any_origin()
-            .allow_any_method()
-            .allow_any_header()
+        let mut cors = Cors::default()
+            .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+            .allowed_headers(vec![
+                actix_web::http::header::AUTHORIZATION,
+                actix_web::http::header::CONTENT_TYPE,
+                actix_web::http::header::ACCEPT,
+            ])
             .max_age(3600);
+
+        // Add allowed origins from environment
+        for origin in cors_origins.split(',') {
+            let origin = origin.trim();
+            if !origin.is_empty() {
+                cors = cors.allowed_origin(origin);
+            }
+        }
+
+        // Configure JSON payload limit
+        let json_cfg = web::JsonConfig::default()
+            .limit(json_limit)
+            .error_handler(|err, _req| {
+                actix_web::error::InternalError::from_response(
+                    err,
+                    actix_web::HttpResponse::PayloadTooLarge()
+                        .json(serde_json::json!({
+                            "error": "Payload too large"
+                        })),
+                )
+                .into()
+            });
+
+        // Security headers middleware
+        let security_headers = DefaultHeaders::new()
+            .add(("X-Content-Type-Options", "nosniff"))
+            .add(("X-Frame-Options", "DENY"))
+            .add(("X-XSS-Protection", "1; mode=block"))
+            .add(("Referrer-Policy", "strict-origin-when-cross-origin"))
+            .add(("Permissions-Policy", "geolocation=(), camera=(), microphone=()"));
 
         App::new()
             .app_data(web::Data::new(app_state.clone()))
+            .app_data(json_cfg)
+            .wrap(security_headers)
+            .wrap(Governor::new(&governor_config))
             .wrap(Logger::default())
             .wrap(cors)
             .configure(routes::configure)
