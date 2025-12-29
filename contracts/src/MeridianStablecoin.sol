@@ -8,6 +8,21 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
+ * @title IComplianceOracle
+ * @notice Interface for external compliance checks during transfers
+ */
+interface IComplianceOracle {
+    /**
+     * @notice Check if a transfer is compliant
+     * @param from Sender address
+     * @param to Recipient address
+     * @param amount Transfer amount
+     * @return True if transfer is allowed, false otherwise
+     */
+    function isTransferAllowed(address from, address to, uint256 amount) external view returns (bool);
+}
+
+/**
  * @title MeridianMultiCurrencyStablecoin
  * @author Meridian Team
  * @notice ERC-20 stablecoin with multi-currency basket support
@@ -41,6 +56,17 @@ contract MeridianStablecoin is
     
     /// @notice Role for upgrading contract
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
+
+    // ============ Constants ============
+
+    /// @notice Token decimals (6, like USDC)
+    uint8 public constant TOKEN_DECIMALS = 6;
+
+    /// @notice Reserve value decimals (2, e.g., 100 = $1.00)
+    uint8 public constant RESERVE_DECIMALS = 2;
+
+    /// @notice Multiplier to convert reserve value (2 decimals) to token decimals (6)
+    uint256 public constant RESERVE_TO_TOKEN_MULTIPLIER = 10 ** (TOKEN_DECIMALS - RESERVE_DECIMALS);
 
     // ============ State Variables ============
 
@@ -165,6 +191,7 @@ contract MeridianStablecoin is
     error SenderBlacklisted();
     error InvalidReserveRatio();
     error AttestationBelowSupply();
+    error TransferNotCompliant();
 
     // ============ Initialization ============
 
@@ -196,6 +223,8 @@ contract MeridianStablecoin is
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
+        _grantRole(MINTER_ROLE, admin_);
+        _grantRole(BURNER_ROLE, admin_);
         _grantRole(PAUSER_ROLE, admin_);
         _grantRole(UPGRADER_ROLE, admin_);
 
@@ -240,7 +269,9 @@ contract MeridianStablecoin is
         if (isBlacklisted[request.recipient]) revert RecipientBlacklisted();
 
         // Verify reserve backing (must be at least 1:1)
-        if (request.reserveValue < request.amount) revert InsufficientReserveBacking();
+        // Normalize: reserveValue (2 decimals) * 10^4 -> token decimals (6 decimals)
+        uint256 normalizedReserveValue = request.reserveValue * RESERVE_TO_TOKEN_MULTIPLIER;
+        if (normalizedReserveValue < request.amount) revert InsufficientReserveBacking();
 
         // Update reserve tracking
         totalReserveValue += request.reserveValue;
@@ -293,10 +324,12 @@ contract MeridianStablecoin is
      * @notice Blacklist an address for compliance reasons
      * @param account Address to blacklist
      * @param reason Reason for blacklisting
+     * @dev Protected by pause mechanism for emergency scenarios
      */
-    function blacklistAddress(address account, string memory reason) 
-        external 
-        onlyRole(DEFAULT_ADMIN_ROLE) 
+    function blacklistAddress(address account, string memory reason)
+        external
+        whenNotPaused
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {
         isBlacklisted[account] = true;
         emit AddressBlacklisted(account, reason);
@@ -305,10 +338,12 @@ contract MeridianStablecoin is
     /**
      * @notice Remove an address from the blacklist
      * @param account Address to whitelist
+     * @dev Protected by pause mechanism for emergency scenarios
      */
-    function whitelistAddress(address account) 
-        external 
-        onlyRole(DEFAULT_ADMIN_ROLE) 
+    function whitelistAddress(address account)
+        external
+        whenNotPaused
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {
         isBlacklisted[account] = false;
         emit AddressWhitelisted(account);
@@ -318,14 +353,16 @@ contract MeridianStablecoin is
      * @notice Attest to the current reserve backing
      * @param attestedReserveValue Total USD value of reserves (2 decimals)
      * @dev Reserves must be at least equal to total supply
+     * @dev Protected by pause mechanism for emergency scenarios
      */
-    function attestReserves(uint256 attestedReserveValue) 
-        external 
-        onlyRole(DEFAULT_ADMIN_ROLE) 
+    function attestReserves(uint256 attestedReserveValue)
+        external
+        whenNotPaused
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {
         uint256 currentSupply = totalSupply();
         uint256 requiredReserve = (currentSupply * minReserveRatio) / 10000;
-        
+
         if (attestedReserveValue < requiredReserve) revert AttestationBelowSupply();
 
         lastAttestation = block.timestamp;
@@ -341,16 +378,18 @@ contract MeridianStablecoin is
     /**
      * @notice Update the minimum reserve ratio
      * @param newRatio New reserve ratio in basis points (10000 = 100%)
+     * @dev Protected by pause mechanism for emergency scenarios
      */
-    function setMinReserveRatio(uint256 newRatio) 
-        external 
-        onlyRole(DEFAULT_ADMIN_ROLE) 
+    function setMinReserveRatio(uint256 newRatio)
+        external
+        whenNotPaused
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {
         if (newRatio < 10000) revert InvalidReserveRatio();
-        
+
         uint256 oldRatio = minReserveRatio;
         minReserveRatio = newRatio;
-        
+
         emit ReserveRatioUpdated(oldRatio, newRatio);
     }
 
@@ -386,7 +425,7 @@ contract MeridianStablecoin is
 
     /**
      * @notice Hook that is called on any transfer of tokens (including mint and burn)
-     * @dev Enforces pause and blacklist checks
+     * @dev Enforces pause, blacklist, and compliance oracle checks
      */
     function _update(
         address from,
@@ -395,19 +434,45 @@ contract MeridianStablecoin is
     ) internal virtual override whenNotPaused {
         if (isBlacklisted[from]) revert SenderBlacklisted();
         if (isBlacklisted[to]) revert RecipientBlacklisted();
+
+        // Call compliance oracle if configured (skip for mint/burn where from/to is zero)
+        if (complianceOracle != address(0) && from != address(0) && to != address(0)) {
+            if (!IComplianceOracle(complianceOracle).isTransferAllowed(from, to, amount)) {
+                revert TransferNotCompliant();
+            }
+        }
+
         super._update(from, to, amount);
+    }
+
+    /**
+     * @notice Update the compliance oracle address
+     * @param newOracle Address of the new compliance oracle (or address(0) to disable)
+     */
+    function setComplianceOracle(address newOracle) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        complianceOracle = newOracle;
     }
 
     // ============ View Functions ============
 
     /**
+     * @notice Override decimals to return 6 (like USDC)
+     * @return 6 decimals
+     */
+    function decimals() public pure override returns (uint8) {
+        return TOKEN_DECIMALS;
+    }
+
+    /**
      * @notice Get the current reserve ratio in basis points
+     * @dev Normalizes reserve value (2 decimals) to token supply (6 decimals) for comparison
      * @return Reserve ratio (e.g., 10000 = 100%)
      */
     function getReserveRatio() external view returns (uint256) {
         uint256 supply = totalSupply();
         if (supply == 0) return 0;
-        return (totalReserveValue * 10000) / supply;
+        // Normalize: reserveValue * 10^4 converts from 2 decimals to 6 decimals
+        return (totalReserveValue * RESERVE_TO_TOKEN_MULTIPLIER * 10000) / supply;
     }
 
     /**
