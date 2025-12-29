@@ -1,6 +1,6 @@
 //! Mint/Burn operation handlers
 
-use crate::error::ApiError;
+use crate::error::{ApiError, handle_db_error};
 use crate::state::AppState;
 use actix_web::{web, HttpRequest, HttpResponse};
 use rust_decimal::Decimal;
@@ -45,6 +45,23 @@ const FEE_ISSUANCE_BPS: i64 = 25; // 25 basis points
 const FEE_REDEMPTION_BPS: i64 = 25;
 const RESERVE_BUFFER_PERCENT: i64 = 2; // 2% over-collateralization
 
+/// Supported currency codes (ISO 4217)
+/// Only these currencies can be minted/burned on the platform
+const SUPPORTED_CURRENCIES: &[&str] = &["EUR", "GBP", "JPY", "MXN", "BRL", "ARS"];
+
+/// Validate currency code against whitelist
+fn validate_currency(currency: &str) -> Result<(), ApiError> {
+    let normalized = currency.to_uppercase();
+    if !SUPPORTED_CURRENCIES.contains(&normalized.as_str()) {
+        return Err(ApiError::BadRequest(format!(
+            "Unsupported currency: {}. Supported: {}",
+            currency,
+            SUPPORTED_CURRENCIES.join(", ")
+        )));
+    }
+    Ok(())
+}
+
 /// POST /api/v1/operations/mint
 pub async fn mint(
     state: web::Data<Arc<AppState>>,
@@ -62,6 +79,9 @@ pub async fn mint(
         return Err(ApiError::Forbidden("Cannot mint for another user".to_string()));
     }
 
+    // Validate currency is on the supported whitelist
+    validate_currency(&req.currency)?;
+
     tracing::info!(
         user_id = req.user_id,
         currency = %req.currency,
@@ -73,7 +93,7 @@ pub async fn mint(
     let user = sqlx::query!("SELECT kyc_status FROM users WHERE id = $1", req.user_id)
         .fetch_optional(state.db_pool.as_ref())
         .await
-        .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+        .map_err(|e| handle_db_error(e, "operations"))?;
 
     let user = match user {
         Some(u) => u,
@@ -161,6 +181,9 @@ pub async fn burn(
         return Err(ApiError::Forbidden("Cannot burn for another user".to_string()));
     }
 
+    // Validate currency is on the supported whitelist
+    validate_currency(&req.currency)?;
+
     tracing::info!(
         user_id = req.user_id,
         currency = %req.currency,
@@ -172,7 +195,7 @@ pub async fn burn(
     let user = sqlx::query!("SELECT kyc_status FROM users WHERE id = $1", req.user_id)
         .fetch_optional(state.db_pool.as_ref())
         .await
-        .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+        .map_err(|e| handle_db_error(e, "operations"))?;
 
     let user = match user {
         Some(u) => u,
@@ -269,7 +292,7 @@ pub async fn get_transactions(
     )
     .fetch_all(state.db_pool.as_ref())
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "operations"))?;
 
     let responses: Vec<TransactionResponse> = transactions
         .into_iter()
@@ -324,12 +347,19 @@ async fn get_fx_rate(
             currency = currency,
             "CRITICAL: Using fallback FX rates in production! Oracle is unavailable."
         );
-        // In strict production mode, fail rather than use stale rates
-        if std::env::var("STRICT_FX_RATES").map(|v| v == "true").unwrap_or(false) {
+        // In production, STRICT_FX_RATES defaults to TRUE for safety
+        // Only disable if explicitly set to "false" (dangerous - requires explicit opt-out)
+        let strict_mode = std::env::var("STRICT_FX_RATES")
+            .map(|v| v.to_lowercase() != "false")
+            .unwrap_or(true); // Default to strict in production
+
+        if strict_mode {
             return Err(ApiError::InternalError(
-                "FX rate oracle unavailable. Cannot use fallback rates in strict mode.".to_string()
+                "FX rate oracle unavailable. Cannot use fallback rates in production. \
+                Set STRICT_FX_RATES=false to allow stale rates (NOT RECOMMENDED).".to_string()
             ));
         }
+        tracing::warn!("STRICT_FX_RATES=false - allowing stale fallback rates in production (DANGEROUS)");
     }
 
     tracing::warn!(
@@ -377,7 +407,7 @@ async fn get_authenticated_user_id(
     )
     .fetch_optional(pool)
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "operations"))?;
 
     match session {
         Some(s) => Ok(s.user_id),

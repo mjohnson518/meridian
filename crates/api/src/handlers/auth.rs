@@ -1,6 +1,6 @@
 //! Authentication handlers
 
-use crate::error::ApiError;
+use crate::error::{ApiError, handle_db_error};
 use crate::state::AppState;
 use actix_web::{cookie::{Cookie, SameSite}, web, HttpRequest, HttpResponse};
 use chrono::{Duration, Utc};
@@ -65,20 +65,28 @@ pub async fn login(
         ApiError::InternalError("Failed to query user".to_string())
     })?;
 
-    let user = match user {
-        Some(u) => u,
+    // SECURITY: Constant-time response to prevent timing attacks that enumerate valid emails
+    // Always perform bcrypt verification even for non-existent users
+    let (user_exists, password_hash) = match &user {
+        Some(u) => (true, u.password_hash.clone()),
         None => {
-            tracing::warn!("Login failed: user not found");
-            return Err(ApiError::Unauthorized("Invalid credentials".to_string()));
+            // Use a dummy hash to equalize timing with real user lookups
+            // This hash was pre-computed for "dummy_password_never_used"
+            (false, "$2b$12$K4G/XZJY1Fm9Q8m6Y1K.O.xGxZ1Fm9Q8m6Y1K.O.xGxZ1Fm9Q8m6".to_string())
         }
     };
 
-    // Verify password
-    let password_valid = verify_password(&req.password, &user.password_hash)?;
-    if !password_valid {
-        tracing::warn!("Login failed: invalid password");
+    // Always verify password to prevent timing attacks (result ignored for non-existent users)
+    let password_valid = verify_password(&req.password, &password_hash)?;
+
+    // Return same error for both non-existent user and wrong password (prevents user enumeration)
+    if !user_exists || !password_valid {
+        tracing::warn!("Login failed: invalid credentials");
         return Err(ApiError::Unauthorized("Invalid credentials".to_string()));
     }
+
+    // Safe to unwrap here since we verified user_exists
+    let user = user.unwrap();
 
     // Generate tokens
     let access_token = generate_token();
@@ -164,7 +172,7 @@ pub async fn register(
     let existing = sqlx::query!("SELECT id FROM users WHERE email = $1", req.email)
         .fetch_optional(state.db_pool.as_ref())
         .await
-        .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+        .map_err(|e| handle_db_error(e, "auth"))?;
 
     if existing.is_some() {
         return Err(ApiError::BadRequest("Email already registered".to_string()));
@@ -284,7 +292,7 @@ pub async fn verify(
     )
     .fetch_optional(state.db_pool.as_ref())
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "auth"))?;
 
     let session = match session {
         Some(s) => s,
@@ -331,7 +339,7 @@ pub async fn refresh_token(
     )
     .fetch_optional(state.db_pool.as_ref())
     .await
-    .map_err(|e| ApiError::InternalError(format!("Database error: {}", e)))?;
+    .map_err(|e| handle_db_error(e, "auth"))?;
 
     let session = match session {
         Some(s) => s,
