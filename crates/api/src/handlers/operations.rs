@@ -5,15 +5,40 @@ use crate::state::AppState;
 use actix_web::{web, HttpRequest, HttpResponse};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::sleep;
+
+/// CRIT-001: Retry configuration for oracle calls
+const MAX_RETRIES: u32 = 3;
+const INITIAL_BACKOFF_MS: u64 = 100;
+const MAX_BACKOFF_MS: u64 = 2000;
+
+/// CRIT-001: Generate random jitter (0.0 to 0.5) for backoff
+/// Uses simple time-based pseudo-randomness to avoid adding rand crate dependency
+fn rand_jitter() -> f64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    // Convert to 0.0-0.5 range
+    (nanos as f64 % 500.0) / 1000.0
+}
+
+/// CRIT-003: Idempotency key for preventing duplicate operations
+/// Client must provide a unique key for each distinct operation
+const IDEMPOTENCY_KEY_TTL_HOURS: i64 = 24;
 
 #[derive(Debug, Deserialize)]
 pub struct MintRequest {
     pub user_id: i32,
     pub currency: String,
     pub amount: String, // TEXT decimal
+    /// CRIT-003: Unique idempotency key to prevent duplicate operations
+    /// Must be unique per user+operation. Recommended: UUID v4
+    pub idempotency_key: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -110,6 +135,81 @@ fn validate_currency(currency: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+/// CRIT-003: Idempotency key record for database row mapping
+#[derive(sqlx::FromRow)]
+struct IdempotencyRecord {
+    id: i32,
+    currency: String,
+    amount: String,
+    usd_value: String,
+    bond_requirement: Option<String>,
+    fees_charged: String,
+    settlement_date: Option<chrono::DateTime<chrono::Utc>>,
+    status: String,
+}
+
+/// CRIT-003: Check for existing operation with same idempotency key
+/// Uses runtime query (query_as) to avoid compile-time DB dependency
+async fn check_idempotency(
+    pool: &sqlx::PgPool,
+    user_id: i32,
+    idempotency_key: &str,
+    operation_type: &str,
+) -> Result<Option<MintResponse>, ApiError> {
+    let cutoff = chrono::Utc::now() - chrono::Duration::hours(IDEMPOTENCY_KEY_TTL_HOURS);
+
+    let existing: Option<IdempotencyRecord> = sqlx::query_as(
+        r#"
+        SELECT id, currency, amount, usd_value, bond_requirement, fees_charged,
+               settlement_date, status
+        FROM operations
+        WHERE user_id = $1
+          AND idempotency_key = $2
+          AND operation_type = $3
+          AND created_at > $4
+        "#
+    )
+    .bind(user_id)
+    .bind(idempotency_key)
+    .bind(operation_type)
+    .bind(cutoff)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| {
+        let err_str = e.to_string();
+        // Graceful degradation if migration not applied
+        if err_str.contains("idempotency_key") || err_str.contains("column") {
+            tracing::warn!("Idempotency check failed - migration 20251230000001 required");
+            return ApiError::InternalError(
+                "Idempotency feature requires database migration".to_string()
+            );
+        }
+        tracing::error!("Failed to check idempotency key: {}", e);
+        ApiError::InternalError("Database error".to_string())
+    })?;
+
+    if let Some(op) = existing {
+        tracing::info!(
+            idempotency_key = idempotency_key,
+            operation_id = op.id,
+            "Returning cached result for idempotent request"
+        );
+
+        return Ok(Some(MintResponse {
+            transaction_id: op.id,
+            currency: op.currency,
+            amount: op.amount,
+            usd_value: op.usd_value,
+            bond_requirement: op.bond_requirement.unwrap_or_default(),
+            fees_charged: op.fees_charged,
+            settlement_date: op.settlement_date.map(|d| d.to_rfc3339()).unwrap_or_default(),
+            status: op.status,
+        }));
+    }
+
+    Ok(None)
+}
+
 /// POST /api/v1/operations/mint
 pub async fn mint(
     state: web::Data<Arc<AppState>>,
@@ -125,6 +225,18 @@ pub async fn mint(
             "Mint request rejected: user_id mismatch"
         );
         return Err(ApiError::Forbidden("Cannot mint for another user".to_string()));
+    }
+
+    // CRIT-003: Check idempotency key if provided
+    if let Some(ref idem_key) = req.idempotency_key {
+        if let Some(cached_response) = check_idempotency(
+            state.db_pool.as_ref(),
+            req.user_id,
+            idem_key,
+            "MINT",
+        ).await? {
+            return Ok(HttpResponse::Ok().json(cached_response));
+        }
     }
 
     // Validate currency is on the supported whitelist
@@ -176,27 +288,39 @@ pub async fn mint(
     // Calculate settlement date (T+1)
     let settlement_date = chrono::Utc::now() + chrono::Duration::days(1);
 
-    // Insert operation
-    let operation = sqlx::query!(
+    // CRIT-003: Insert operation with idempotency key using runtime query
+    #[derive(sqlx::FromRow)]
+    struct InsertResult {
+        id: i32,
+        status: String,
+    }
+
+    let operation: InsertResult = sqlx::query_as(
         r#"
         INSERT INTO operations (
-            user_id, operation_type, currency, amount, usd_value, 
-            bond_requirement, fees_charged, status, settlement_date
+            user_id, operation_type, currency, amount, usd_value,
+            bond_requirement, fees_charged, status, settlement_date, idempotency_key
         )
-        VALUES ($1, 'MINT', $2, $3, $4, $5, $6, 'PENDING', $7)
-        RETURNING id, status, created_at
-        "#,
-        req.user_id,
-        req.currency,
-        req.amount,
-        usd_value.to_string(),
-        bond_requirement.to_string(),
-        fees.to_string(),
-        settlement_date
+        VALUES ($1, 'MINT', $2, $3, $4, $5, $6, 'PENDING', $7, $8)
+        RETURNING id, status
+        "#
     )
+    .bind(req.user_id)
+    .bind(&req.currency)
+    .bind(&req.amount)
+    .bind(usd_value.to_string())
+    .bind(bond_requirement.to_string())
+    .bind(fees.to_string())
+    .bind(settlement_date)
+    .bind(&req.idempotency_key)
     .fetch_one(state.db_pool.as_ref())
     .await
     .map_err(|e| {
+        let err_str = e.to_string();
+        // Graceful degradation if migration not applied
+        if err_str.contains("idempotency_key") {
+            tracing::warn!("Insert failed due to missing column - migration 20251230000001 required");
+        }
         tracing::error!("Failed to create mint operation: {}", e);
         ApiError::InternalError("Failed to create mint operation".to_string())
     })?;
@@ -234,6 +358,18 @@ pub async fn burn(
             "Burn request rejected: user_id mismatch"
         );
         return Err(ApiError::Forbidden("Cannot burn for another user".to_string()));
+    }
+
+    // CRIT-003: Check idempotency key if provided
+    if let Some(ref idem_key) = req.idempotency_key {
+        if let Some(cached_response) = check_idempotency(
+            state.db_pool.as_ref(),
+            req.user_id,
+            idem_key,
+            "BURN",
+        ).await? {
+            return Ok(HttpResponse::Ok().json(cached_response));
+        }
     }
 
     // Validate currency is on the supported whitelist
@@ -285,26 +421,37 @@ pub async fn burn(
     // Settlement date
     let settlement_date = chrono::Utc::now() + chrono::Duration::days(2); // T+2 for bond sales
 
-    // Insert burn operation
-    let operation = sqlx::query!(
+    // CRIT-003: Insert burn operation with idempotency key using runtime query
+    #[derive(sqlx::FromRow)]
+    struct BurnResult {
+        id: i32,
+        status: String,
+    }
+
+    let operation: BurnResult = sqlx::query_as(
         r#"
         INSERT INTO operations (
-            user_id, operation_type, currency, amount, usd_value, 
-            fees_charged, status, settlement_date
+            user_id, operation_type, currency, amount, usd_value,
+            fees_charged, status, settlement_date, idempotency_key
         )
-        VALUES ($1, 'BURN', $2, $3, $4, $5, 'PENDING', $6)
-        RETURNING id, status, created_at
-        "#,
-        req.user_id,
-        req.currency,
-        req.amount,
-        net_proceeds.to_string(),
-        fees.to_string(),
-        settlement_date
+        VALUES ($1, 'BURN', $2, $3, $4, $5, 'PENDING', $6, $7)
+        RETURNING id, status
+        "#
     )
+    .bind(req.user_id)
+    .bind(&req.currency)
+    .bind(&req.amount)
+    .bind(net_proceeds.to_string())
+    .bind(fees.to_string())
+    .bind(settlement_date)
+    .bind(&req.idempotency_key)
     .fetch_one(state.db_pool.as_ref())
     .await
     .map_err(|e| {
+        let err_str = e.to_string();
+        if err_str.contains("idempotency_key") {
+            tracing::warn!("Insert failed due to missing column - migration 20251230000001 required");
+        }
         tracing::error!("Failed to create burn operation: {}", e);
         ApiError::InternalError("Failed to create burn operation".to_string())
     })?;
@@ -377,26 +524,106 @@ pub async fn get_transactions(
     })))
 }
 
-// Helper function to get FX rates (simplified - should use oracle)
-// Helper function to get FX rates (uses Oracle with fallback)
+/// CRIT-001 + CRIT-002: Get FX rate with circuit breaker and exponential backoff retry
+/// Uses circuit breaker to fast-fail when oracle is unavailable
+/// Retries oracle calls before falling back to static rates
 async fn get_fx_rate(
     state: &Arc<AppState>,
     currency: &str,
 ) -> Result<Decimal, ApiError> {
-    // 1. Try to get authentic price from Oracle
+    use crate::state::CircuitState;
+
+    let pair = format!("{}/USD", currency);
+
+    // CRIT-002: Check circuit breaker first
+    let circuit_state = state.oracle_circuit_breaker.state();
+    if circuit_state == CircuitState::Open {
+        tracing::warn!(
+            pair = %pair,
+            "Circuit breaker OPEN - skipping oracle, using fallback rates"
+        );
+        // Fast-fail to fallback - don't even try oracle
+        return get_fallback_rate(currency);
+    }
+
+    // 1. Try to get authentic price from Oracle with retry logic
     let oracle_guard = state.oracle.read().await;
-    
+
     if let Some(oracle) = oracle_guard.as_ref() {
-        let pair = format!("{}/USD", currency);
-        match oracle.get_price(&pair).await {
-            Ok(price) => return Ok(price),
-            Err(e) => {
-                tracing::warn!("Oracle failed for {}: {}, falling back to static rates", pair, e);
+        let mut last_error: Option<String> = None;
+
+        for attempt in 0..MAX_RETRIES {
+            match oracle.get_price(&pair).await {
+                Ok(price) => {
+                    // CRIT-002: Record success for circuit breaker
+                    state.oracle_circuit_breaker.record_success();
+
+                    if attempt > 0 {
+                        tracing::info!(
+                            pair = %pair,
+                            attempt = attempt + 1,
+                            "Oracle succeeded after retry"
+                        );
+                    }
+                    return Ok(price);
+                }
+                Err(e) => {
+                    last_error = Some(e.to_string());
+
+                    if attempt < MAX_RETRIES - 1 {
+                        // CRIT-001: Exponential backoff with jitter
+                        let backoff_ms = (INITIAL_BACKOFF_MS * 2u64.pow(attempt))
+                            .min(MAX_BACKOFF_MS);
+                        // Add 0-50% jitter to prevent thundering herd
+                        let jitter = (backoff_ms as f64 * rand_jitter()) as u64;
+                        let wait_time = Duration::from_millis(backoff_ms + jitter);
+
+                        tracing::warn!(
+                            pair = %pair,
+                            attempt = attempt + 1,
+                            backoff_ms = wait_time.as_millis(),
+                            error = %e,
+                            "Oracle call failed, retrying with backoff"
+                        );
+
+                        sleep(wait_time).await;
+                    } else {
+                        // CRIT-002: Record failure for circuit breaker after all retries exhausted
+                        state.oracle_circuit_breaker.record_failure();
+
+                        tracing::error!(
+                            pair = %pair,
+                            attempts = MAX_RETRIES,
+                            error = %e,
+                            circuit_state = ?state.oracle_circuit_breaker.state(),
+                            "Oracle failed after all retries, falling back to static rates"
+                        );
+                    }
+                }
             }
+        }
+
+        // Log that we're falling back after exhausting retries
+        if let Some(err) = last_error {
+            tracing::warn!(
+                pair = %pair,
+                last_error = %err,
+                "Oracle exhausted {} retries, using fallback rates",
+                MAX_RETRIES
+            );
         }
     } else {
         tracing::debug!("Oracle not configured, using static rates for {}", currency);
     }
+
+    // Drop the oracle guard before async operations
+    drop(oracle_guard);
+
+    get_fallback_rate(currency)
+}
+
+/// Get fallback FX rate (used when oracle is unavailable)
+fn get_fallback_rate(currency: &str) -> Result<Decimal, ApiError> {
 
     // 2. Fallback to hardcoded rates (for dev or if oracle fails)
     // SECURITY: These rates are potentially stale and should not be used in production
@@ -477,24 +704,8 @@ async fn get_authenticated_user_id(
     }
 }
 
-/// Hash token for database lookup - must match auth.rs hash_token
-/// BE-MED-001: Added salted hashing to match session storage
-fn hash_token_for_lookup(token: &str) -> String {
-    use std::sync::OnceLock;
-
-    static TOKEN_SALT: OnceLock<String> = OnceLock::new();
-
-    let salt = TOKEN_SALT.get_or_init(|| {
-        std::env::var("SESSION_TOKEN_SALT").unwrap_or_else(|_| {
-            "dev-session-salt-not-for-production".to_string()
-        })
-    });
-
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    hasher.update(salt.as_bytes());
-    hex::encode(hasher.finalize())
-}
+// HIGH-003: Use centralized token hashing from auth_utils
+use super::auth_utils::hash_token_for_lookup;
 
 #[cfg(test)]
 mod tests {

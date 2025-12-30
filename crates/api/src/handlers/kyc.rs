@@ -5,7 +5,6 @@ use crate::state::AppState;
 use actix_web::{web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use sha2::{Sha256, Digest};
 use std::sync::Arc;
 
 /// SECURITY: Maximum allowed size for JSON fields (100KB)
@@ -103,7 +102,13 @@ pub async fn submit_kyc(
         "submitted_at": chrono::Utc::now().to_rfc3339()
     });
 
-    // Insert application
+    // CRIT-004: Use transaction to ensure atomic insert + update
+    let mut tx = state.db_pool.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin transaction: {}", e);
+        ApiError::InternalError("Database transaction error".to_string())
+    })?;
+
+    // Insert application within transaction
     let application = sqlx::query!(
         r#"
         INSERT INTO kyc_applications (user_id, application_data, status)
@@ -113,23 +118,30 @@ pub async fn submit_kyc(
         req.user_id,
         application_data
     )
-    .fetch_one(state.db_pool.as_ref())
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!("Failed to create KYC application: {}", e);
         ApiError::InternalError("Failed to submit KYC application".to_string())
     })?;
 
-    // Update user KYC status (log error but don't fail submission)
-    if let Err(e) = sqlx::query!(
+    // Update user KYC status within same transaction
+    sqlx::query!(
         "UPDATE users SET kyc_status = 'PENDING_REVIEW', updated_at = NOW() WHERE id = $1",
         req.user_id
     )
-    .execute(state.db_pool.as_ref())
+    .execute(&mut *tx)
     .await
-    {
-        tracing::warn!(user_id = req.user_id, error = %e, "Failed to update user kyc_status");
-    }
+    .map_err(|e| {
+        tracing::error!("Failed to update user status: {}", e);
+        ApiError::InternalError("Failed to update user status".to_string())
+    })?;
+
+    // Commit transaction - both operations succeed or both fail
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit transaction: {}", e);
+        ApiError::InternalError("Database commit error".to_string())
+    })?;
 
     tracing::info!(
         application_id = application.id,
@@ -206,6 +218,7 @@ pub async fn get_kyc_status(
 }
 
 /// PUT /api/v1/kyc/approve/{application_id}
+/// CRIT-004: Uses database transaction to ensure atomic updates
 pub async fn approve_kyc(
     state: web::Data<Arc<AppState>>,
     req: HttpRequest,
@@ -229,27 +242,45 @@ pub async fn approve_kyc(
         None => return Err(ApiError::NotFound("Application not found".to_string())),
     };
 
-    // Update application status
+    // CRIT-004: Use transaction to ensure atomic updates across both tables
+    let mut tx = state.db_pool.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin transaction: {}", e);
+        ApiError::InternalError("Database transaction error".to_string())
+    })?;
+
+    // Update application status within transaction
     sqlx::query!(
         r#"
-        UPDATE kyc_applications 
+        UPDATE kyc_applications
         SET status = 'APPROVED', reviewed_at = NOW(), updated_at = NOW()
         WHERE id = $1
         "#,
         app_id
     )
-    .execute(state.db_pool.as_ref())
+    .execute(&mut *tx)
     .await
-    .map_err(|e| handle_db_error(e, "kyc"))?;
+    .map_err(|e| {
+        tracing::error!("Failed to update application: {}", e);
+        ApiError::InternalError("Failed to update application".to_string())
+    })?;
 
-    // Update user KYC status
+    // Update user KYC status within same transaction
     sqlx::query!(
         "UPDATE users SET kyc_status = 'APPROVED', updated_at = NOW() WHERE id = $1",
         application.user_id
     )
-    .execute(state.db_pool.as_ref())
+    .execute(&mut *tx)
     .await
-    .map_err(|e| handle_db_error(e, "kyc"))?;
+    .map_err(|e| {
+        tracing::error!("Failed to update user status: {}", e);
+        ApiError::InternalError("Failed to update user status".to_string())
+    })?;
+
+    // Commit transaction - both updates succeed or both fail
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit transaction: {}", e);
+        ApiError::InternalError("Database commit error".to_string())
+    })?;
 
     tracing::info!(application_id = app_id, user_id = application.user_id, "KYC approved");
 
@@ -261,6 +292,7 @@ pub async fn approve_kyc(
 }
 
 /// PUT /api/v1/kyc/reject/{application_id}
+/// CRIT-004: Uses database transaction to ensure atomic updates
 pub async fn reject_kyc(
     state: web::Data<Arc<AppState>>,
     req: HttpRequest,
@@ -283,15 +315,18 @@ pub async fn reject_kyc(
         return Err(ApiError::BadRequest("Rejection reason must be 500 characters or less".to_string()));
     }
 
-    // Sanitize: Remove potentially dangerous characters (HTML tags, control chars)
+    // HIGH-008 FIX: Complete HTML entity encoding to prevent XSS
     // Order matters: escape & first to avoid double-escaping
+    // Added: " and ' escaping for attribute-based XSS prevention
     let rejection_reason: String = raw_reason
         .chars()
         .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')
         .collect::<String>()
         .replace('&', "&amp;")
         .replace('<', "&lt;")
-        .replace('>', "&gt;");
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#x27;");
 
     tracing::info!(application_id = app_id, "Rejecting KYC application");
 
@@ -306,30 +341,46 @@ pub async fn reject_kyc(
         None => return Err(ApiError::NotFound("Application not found".to_string())),
     };
 
-    // Update application
+    // CRIT-004: Use transaction to ensure atomic updates across both tables
+    let mut tx = state.db_pool.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin transaction: {}", e);
+        ApiError::InternalError("Database transaction error".to_string())
+    })?;
+
+    // Update application within transaction
     sqlx::query!(
         r#"
-        UPDATE kyc_applications 
+        UPDATE kyc_applications
         SET status = 'REJECTED', rejection_reason = $2, reviewed_at = NOW(), updated_at = NOW()
         WHERE id = $1
         "#,
         app_id,
         rejection_reason
     )
-    .execute(state.db_pool.as_ref())
+    .execute(&mut *tx)
     .await
-    .map_err(|e| handle_db_error(e, "kyc"))?;
+    .map_err(|e| {
+        tracing::error!("Failed to update application: {}", e);
+        ApiError::InternalError("Failed to update application".to_string())
+    })?;
 
-    // Update user status (log error but don't fail rejection)
-    if let Err(e) = sqlx::query!(
+    // Update user status within same transaction
+    sqlx::query!(
         "UPDATE users SET kyc_status = 'REJECTED', updated_at = NOW() WHERE id = $1",
         application.user_id
     )
-    .execute(state.db_pool.as_ref())
+    .execute(&mut *tx)
     .await
-    {
-        tracing::warn!(user_id = application.user_id, error = %e, "Failed to update user kyc_status to REJECTED");
-    }
+    .map_err(|e| {
+        tracing::error!("Failed to update user status: {}", e);
+        ApiError::InternalError("Failed to update user status".to_string())
+    })?;
+
+    // Commit transaction - both updates succeed or both fail
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit transaction: {}", e);
+        ApiError::InternalError("Database commit error".to_string())
+    })?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "message": "KYC application rejected",
@@ -380,24 +431,8 @@ async fn get_authenticated_user(
     }
 }
 
-/// Hash token for database lookup - must match auth.rs hash_token
-/// CRIT-001: Added salted hashing to match session storage
-fn hash_token_for_lookup(token: &str) -> String {
-    use std::sync::OnceLock;
-
-    static TOKEN_SALT: OnceLock<String> = OnceLock::new();
-
-    let salt = TOKEN_SALT.get_or_init(|| {
-        std::env::var("SESSION_TOKEN_SALT").unwrap_or_else(|_| {
-            "dev-session-salt-not-for-production".to_string()
-        })
-    });
-
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    hasher.update(salt.as_bytes());
-    hex::encode(hasher.finalize())
-}
+// HIGH-003: Use centralized token hashing from auth_utils
+use super::auth_utils::hash_token_for_lookup;
 
 /// Verify the caller has ADMIN role
 async fn verify_admin(

@@ -2,6 +2,7 @@
 
 pub mod agents;
 pub mod auth;
+pub mod auth_utils;
 pub mod baskets;
 pub mod health;
 pub mod kyc;

@@ -6,7 +6,6 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use ethers::types::Address;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
 use sqlx::PgPool;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -186,9 +185,10 @@ pub async fn create_agent(
         ApiError::InternalError("Failed to create agent wallet".to_string())
     })?;
 
+    // HIGH-027: Mask wallet address in logs (show first 6 and last 4 chars)
     tracing::info!(
         agent_id = %agent_id,
-        wallet = %wallet_address,
+        wallet = %mask_address(&wallet_address),
         "Agent wallet created"
     );
 
@@ -208,9 +208,10 @@ pub async fn agent_pay(
     http_req: HttpRequest,
     req: web::Json<AgentPaymentRequest>,
 ) -> Result<HttpResponse, ApiError> {
+    // HIGH-027: Mask recipient address in logs for PII compliance
     tracing::info!(
         agent_id = %req.agent_id,
-        recipient = %req.recipient,
+        recipient = %mask_address(&req.recipient),
         amount = %req.amount,
         currency = %req.currency,
         "Agent payment request"
@@ -404,13 +405,30 @@ pub async fn list_agents(
         return Err(ApiError::Forbidden("Cannot access other user's agents".to_string()));
     }
 
+    // HIGH-001 FIX: Single query with LEFT JOIN to avoid N+1 queries
+    // Previously: 1 query for agents + N queries for daily_spent = N+1 queries
+    // Now: 1 query total (99% reduction for 100 agents)
     let agents = sqlx::query!(
         r#"
-        SELECT agent_id, agent_name, wallet_address, spending_limit_daily, 
-               spending_limit_transaction, is_active, created_at
-        FROM agent_wallets
-        WHERE user_id = $1
-        ORDER BY created_at DESC
+        SELECT
+            aw.agent_id,
+            aw.agent_name,
+            aw.wallet_address,
+            aw.spending_limit_daily,
+            aw.spending_limit_transaction,
+            aw.is_active,
+            aw.created_at,
+            COALESCE(
+                (SELECT SUM(CAST(amount AS DECIMAL))::TEXT
+                 FROM agent_transactions
+                 WHERE agent_id = aw.agent_id
+                 AND created_at > NOW() - INTERVAL '24 hours'
+                 AND status IN ('PENDING', 'COMPLETED')),
+                '0'
+            ) AS daily_spent
+        FROM agent_wallets aw
+        WHERE aw.user_id = $1
+        ORDER BY aw.created_at DESC
         "#,
         user_id
     )
@@ -418,21 +436,19 @@ pub async fn list_agents(
     .await
     .map_err(|e| handle_db_error(e, "agents"))?;
 
-    let mut responses = Vec::new();
-    for agent in agents {
-        let daily_spent = get_daily_spent(state.db_pool.as_ref(), &agent.agent_id).await?;
-
-        responses.push(AgentWalletResponse {
+    let responses: Vec<AgentWalletResponse> = agents
+        .into_iter()
+        .map(|agent| AgentWalletResponse {
             agent_id: agent.agent_id.clone(),
             agent_name: agent.agent_name.unwrap_or_else(|| "Unnamed Agent".to_string()),
             wallet_address: agent.wallet_address,
             spending_limit_daily: agent.spending_limit_daily,
             spending_limit_transaction: agent.spending_limit_transaction,
-            daily_spent: daily_spent.to_string(),
+            daily_spent: agent.daily_spent.unwrap_or_else(|| "0".to_string()),
             is_active: agent.is_active,
             created_at: agent.created_at.to_rfc3339(),
-        });
-    }
+        })
+        .collect();
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "agents": responses,
@@ -760,23 +776,17 @@ async fn get_authenticated_user_id(
     }
 }
 
-/// Hash token for database lookup - must match auth.rs hash_token
-/// BE-MED-001: Added salted hashing to match session storage
-fn hash_token_for_lookup(token: &str) -> String {
-    use std::sync::OnceLock;
+// HIGH-003: Use centralized token hashing from auth_utils
+use super::auth_utils::hash_token_for_lookup;
 
-    static TOKEN_SALT: OnceLock<String> = OnceLock::new();
-
-    let salt = TOKEN_SALT.get_or_init(|| {
-        std::env::var("SESSION_TOKEN_SALT").unwrap_or_else(|_| {
-            "dev-session-salt-not-for-production".to_string()
-        })
-    });
-
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    hasher.update(salt.as_bytes());
-    hex::encode(hasher.finalize())
+/// HIGH-027: Mask Ethereum address for logging (PII compliance)
+/// Shows first 6 chars (0x + 4) and last 4 chars, masks middle with asterisks
+/// Example: 0x742d...bEb1
+fn mask_address(address: &str) -> String {
+    if address.len() < 12 {
+        return "***".to_string(); // Invalid address
+    }
+    format!("{}...{}", &address[..6], &address[address.len()-4..])
 }
 
 #[cfg(test)]
