@@ -9,7 +9,7 @@ use actix_cors::Cors;
 use actix_governor::{Governor, GovernorConfigBuilder};
 use actix_web::{middleware::{DefaultHeaders, Logger}, web, App, HttpServer};
 use meridian_api::{routes, state::AppState, telemetry};
-use middleware::CorrelationIdMiddleware;
+use middleware::{CorrelationIdMiddleware, RateLimitHeadersMiddleware};
 use meridian_db::{create_pool, run_migrations};
 use openapi::ApiDoc;
 use std::sync::Arc;
@@ -180,6 +180,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(app_state.clone()))
             .app_data(json_cfg)
             .wrap(security_headers)
+            // HIGH-010: Add rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
+            .wrap(RateLimitHeadersMiddleware::new())
             .wrap(CorrelationIdMiddleware::new())
             .wrap(Governor::new(&governor_config))
             .wrap(Logger::default())
