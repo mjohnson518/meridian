@@ -55,6 +55,10 @@ export interface Session {
   accessToken: string;
   refreshToken: string;
   expiresAt: number;
+  // SECURITY: Dedicated short-lived token for WebSocket auth
+  // Backend should generate this separately from the main accessToken
+  // This token should have shorter expiry and limited scope
+  wsToken?: string;
 }
 
 export interface LoginCredentials {

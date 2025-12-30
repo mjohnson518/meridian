@@ -168,15 +168,24 @@ export const authClient = {
   // Actual authentication uses httpOnly cookies set by backend
   saveSession(session: Session) {
     if (typeof window !== 'undefined') {
-      // Strip sensitive tokens before storing
+      // FRONTEND-CRIT-001: Strip sensitive tokens before storing
+      // Only store user info for UI display, NOT access tokens
       const safeSession = {
         user: session.user,
         expiresAt: session.expiresAt,
-        // Note: accessToken/refreshToken NOT stored - handled by httpOnly cookies
+        // SECURITY: accessToken/refreshToken NOT stored - XSS risk
+        // All API auth uses httpOnly cookies set by backend
       };
       localStorage.setItem(SESSION_KEY, JSON.stringify(safeSession));
-      // WebSocket-only token (required because WS can't use cookies)
-      localStorage.setItem(TOKEN_KEY, session.accessToken);
+
+      // NOTE: WebSocket authentication requires a separate short-lived token
+      // The backend should provide a dedicated WS token (not the main accessToken)
+      // For now, store the wsToken if provided, otherwise WS features will be degraded
+      if (session.wsToken) {
+        localStorage.setItem(TOKEN_KEY, session.wsToken);
+      }
+      // REMOVED: localStorage.setItem(TOKEN_KEY, session.accessToken);
+      // Storing accessToken in localStorage is an XSS vulnerability
     }
   },
 
