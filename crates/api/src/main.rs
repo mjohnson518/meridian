@@ -2,14 +2,12 @@
 //!
 //! HTTP API for managing multi-currency stablecoins
 
-mod middleware;
 mod openapi;
 
 use actix_cors::Cors;
 use actix_governor::{Governor, GovernorConfigBuilder};
 use actix_web::{middleware::{DefaultHeaders, Logger}, web, App, HttpServer};
-use meridian_api::{routes, state::AppState, telemetry};
-use middleware::{CorrelationIdMiddleware, RateLimitHeadersMiddleware};
+use meridian_api::{routes, state::AppState, telemetry, CorrelationIdMiddleware, RateLimitHeadersMiddleware};
 use meridian_db::{create_pool, run_migrations};
 use openapi::ApiDoc;
 use std::sync::Arc;

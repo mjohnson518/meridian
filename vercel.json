@@ -2,7 +2,7 @@
   "buildCommand": "cd meridian-frontend && npm run build",
   "outputDirectory": "meridian-frontend/.next",
   "framework": "nextjs",
-  "installCommand": "cd meridian-frontend && npm install",
+  "installCommand": "cd meridian-frontend && npm ci",
   "devCommand": "cd meridian-frontend && npm run dev",
   "env": {
     "NEXT_PUBLIC_CHAIN_ID": "1",

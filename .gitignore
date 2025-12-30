@@ -1,6 +1,7 @@
 # Rust
 target/
-Cargo.lock
+# DO-MED-002 FIX: Cargo.lock should be committed for binary applications (reproducible builds)
+# Cargo.lock is intentionally NOT gitignored - see Rust best practices
 *.rs.bk
 *.pdb
 

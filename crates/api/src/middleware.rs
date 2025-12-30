@@ -1,6 +1,7 @@
 //! Middleware components for the Meridian API
 //!
-//! Includes correlation ID propagation for distributed tracing.
+//! Includes correlation ID propagation for distributed tracing
+//! and rate limit headers for API responses.
 
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::http::header::HeaderValue;
@@ -294,5 +295,254 @@ mod tests {
 
         // Generated UUID, not the long string
         assert!(Uuid::parse_str(outgoing_id).is_ok());
+    }
+}
+
+// ============================================================================
+// HIGH-010: Rate Limit Headers Middleware
+// ============================================================================
+
+/// Rate limit header names per RFC 6585 and draft-ietf-httpapi-ratelimit-headers
+pub const RATELIMIT_LIMIT_HEADER: &str = "X-RateLimit-Limit";
+pub const RATELIMIT_REMAINING_HEADER: &str = "X-RateLimit-Remaining";
+pub const RATELIMIT_RESET_HEADER: &str = "X-RateLimit-Reset";
+
+/// Configuration for rate limit headers
+#[derive(Clone, Debug)]
+pub struct RateLimitConfig {
+    /// Maximum requests per window
+    pub limit: u32,
+    /// Window size in seconds
+    pub window_secs: u32,
+}
+
+impl Default for RateLimitConfig {
+    fn default() -> Self {
+        // Match governor config: 2 req/sec * 60 = ~120/minute, burst 10
+        Self {
+            limit: 120,
+            window_secs: 60,
+        }
+    }
+}
+
+/// Middleware that adds rate limit headers to all responses.
+///
+/// Headers added:
+/// - X-RateLimit-Limit: Maximum requests allowed per window
+/// - X-RateLimit-Remaining: Approximate remaining requests (based on window)
+/// - X-RateLimit-Reset: Seconds until window resets
+///
+/// Note: This provides informative headers. The actual rate limiting is
+/// handled by actix-governor middleware.
+#[derive(Clone, Debug)]
+pub struct RateLimitHeadersMiddleware {
+    config: RateLimitConfig,
+}
+
+impl RateLimitHeadersMiddleware {
+    /// Create a new rate limit headers middleware with default config
+    pub fn new() -> Self {
+        Self {
+            config: RateLimitConfig::default(),
+        }
+    }
+
+    /// Create with custom configuration
+    pub fn with_config(config: RateLimitConfig) -> Self {
+        Self { config }
+    }
+}
+
+impl Default for RateLimitHeadersMiddleware {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<S, B> Transform<S, ServiceRequest> for RateLimitHeadersMiddleware
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Transform = RateLimitHeadersService<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ready(Ok(RateLimitHeadersService {
+            service,
+            config: self.config.clone(),
+        }))
+    }
+}
+
+/// The actual service that adds rate limit headers
+pub struct RateLimitHeadersService<S> {
+    service: S,
+    config: RateLimitConfig,
+}
+
+impl<S, B> Service<ServiceRequest> for RateLimitHeadersService<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
+    }
+
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        let fut = self.service.call(req);
+        let limit = self.config.limit;
+        let window_secs = self.config.window_secs;
+
+        Box::pin(async move {
+            let mut res = fut.await?;
+
+            // Calculate approximate remaining (simplified - actual tracking in governor)
+            // For 429 responses, remaining is 0
+            let remaining = if res.status() == actix_web::http::StatusCode::TOO_MANY_REQUESTS {
+                0
+            } else {
+                // Approximate remaining based on configured limit
+                // Real value would require per-client tracking shared with governor
+                limit.saturating_sub(1)
+            };
+
+            // Calculate reset time (seconds until next window)
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let window_start = now - (now % window_secs as u64);
+            let reset = window_start + window_secs as u64 - now;
+
+            // Add rate limit headers
+            if let Ok(limit_val) = HeaderValue::from_str(&limit.to_string()) {
+                res.headers_mut()
+                    .insert(RATELIMIT_LIMIT_HEADER.parse().unwrap(), limit_val);
+            }
+            if let Ok(remaining_val) = HeaderValue::from_str(&remaining.to_string()) {
+                res.headers_mut()
+                    .insert(RATELIMIT_REMAINING_HEADER.parse().unwrap(), remaining_val);
+            }
+            if let Ok(reset_val) = HeaderValue::from_str(&reset.to_string()) {
+                res.headers_mut()
+                    .insert(RATELIMIT_RESET_HEADER.parse().unwrap(), reset_val);
+            }
+
+            // Add Retry-After header on 429 responses
+            if res.status() == actix_web::http::StatusCode::TOO_MANY_REQUESTS {
+                if let Ok(retry_val) = HeaderValue::from_str(&reset.to_string()) {
+                    res.headers_mut()
+                        .insert("Retry-After".parse().unwrap(), retry_val);
+                }
+            }
+
+            Ok(res)
+        })
+    }
+}
+
+#[cfg(test)]
+mod rate_limit_tests {
+    use super::*;
+    use actix_web::{test, web, App, HttpResponse};
+
+    async fn test_handler() -> HttpResponse {
+        HttpResponse::Ok().body("OK")
+    }
+
+    async fn rate_limited_handler() -> HttpResponse {
+        HttpResponse::TooManyRequests().body("Too Many Requests")
+    }
+
+    #[actix_web::test]
+    async fn test_adds_rate_limit_headers() {
+        let app = test::init_service(
+            App::new()
+                .wrap(RateLimitHeadersMiddleware::new())
+                .route("/", web::get().to(test_handler)),
+        )
+        .await;
+
+        let req = test::TestRequest::get().uri("/").to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert!(resp.status().is_success());
+        assert!(resp.headers().contains_key(RATELIMIT_LIMIT_HEADER));
+        assert!(resp.headers().contains_key(RATELIMIT_REMAINING_HEADER));
+        assert!(resp.headers().contains_key(RATELIMIT_RESET_HEADER));
+
+        // Check limit value matches config
+        let limit = resp
+            .headers()
+            .get(RATELIMIT_LIMIT_HEADER)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(limit, "120");
+    }
+
+    #[actix_web::test]
+    async fn test_adds_retry_after_on_429() {
+        let app = test::init_service(
+            App::new()
+                .wrap(RateLimitHeadersMiddleware::new())
+                .route("/", web::get().to(rate_limited_handler)),
+        )
+        .await;
+
+        let req = test::TestRequest::get().uri("/").to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(
+            resp.status(),
+            actix_web::http::StatusCode::TOO_MANY_REQUESTS
+        );
+        assert!(resp.headers().contains_key("retry-after"));
+
+        // Remaining should be 0 on 429
+        let remaining = resp
+            .headers()
+            .get(RATELIMIT_REMAINING_HEADER)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(remaining, "0");
+    }
+
+    #[actix_web::test]
+    async fn test_custom_config() {
+        let config = RateLimitConfig {
+            limit: 1000,
+            window_secs: 3600,
+        };
+        let app = test::init_service(
+            App::new()
+                .wrap(RateLimitHeadersMiddleware::with_config(config))
+                .route("/", web::get().to(test_handler)),
+        )
+        .await;
+
+        let req = test::TestRequest::get().uri("/").to_request();
+        let resp = test::call_service(&app, req).await;
+
+        let limit = resp
+            .headers()
+            .get(RATELIMIT_LIMIT_HEADER)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(limit, "1000");
     }
 }

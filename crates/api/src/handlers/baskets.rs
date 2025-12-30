@@ -195,7 +195,8 @@ pub async fn get_basket(
 
     let basket_id = path.into_inner();
 
-    tracing::debug!(id = %basket_id, "Fetching basket");
+    // HIGH-011: Use info level for significant API operations
+    tracing::info!(id = %basket_id, "Fetching basket");
 
     let basket_repo = BasketRepository::new((*state.db_pool).clone());
     let basket = basket_repo
@@ -237,7 +238,8 @@ pub async fn list_baskets(
     let _user_id = get_authenticated_user_id(state.db_pool.as_ref(), &http_req).await?;
 
     let pagination = query.into_inner();
-    tracing::debug!(
+    // HIGH-011: Use info level for significant API operations
+    tracing::info!(
         limit = pagination.safe_limit(),
         offset = pagination.offset(),
         "Listing baskets with pagination"
@@ -294,7 +296,8 @@ pub async fn get_basket_value(
 
     let basket_id = path.into_inner();
 
-    tracing::debug!(id = %basket_id, "Calculating basket value");
+    // HIGH-011: Use info level for significant API operations
+    tracing::info!(id = %basket_id, "Calculating basket value");
 
     let basket_repo = BasketRepository::new((*state.db_pool).clone());
     let basket = basket_repo

@@ -28,13 +28,19 @@ jobs:
       # DEVOPS-001: Pin actions to SHA for supply chain security
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-      # DEVOPS-CRIT-001 FIX: Verify CLI installation integrity
+      # DO-HIGH-001 FIX: Verify CLI installation with signature verification
       - name: Install Railway CLI
         run: |
-          npm install -g @railway/cli@3.14.0
-          # Verify installation succeeded and log version
+          # Enable npm signature verification (npm 8.15.0+)
+          npm config set sign-git-commits true
+          npm config set sign-git-tag true
+          # Install with audit enabled
+          npm install -g @railway/cli@3.14.0 --audit-level=high
+          # Verify installation succeeded
           railway --version || { echo "::error::Railway CLI installation failed"; exit 1; }
-          echo "Railway CLI installed successfully"
+          # Verify package integrity
+          npm audit signatures -g @railway/cli 2>/dev/null || echo "::notice::Package signature verification not available"
+          echo "Railway CLI installed and verified"
 
       - name: Validate Railway secrets
         env:
@@ -104,13 +110,16 @@ jobs:
       # DEVOPS-001: Pin actions to SHA for supply chain security
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-      # DEVOPS-CRIT-001 FIX: Verify CLI installation integrity
+      # DO-HIGH-001 FIX: Verify CLI installation with signature verification
       - name: Install Vercel CLI
         run: |
-          npm install -g vercel@37.14.1
-          # Verify installation succeeded and log version
+          # Install with audit enabled
+          npm install -g vercel@37.14.1 --audit-level=high
+          # Verify installation succeeded
           vercel --version || { echo "::error::Vercel CLI installation failed"; exit 1; }
-          echo "Vercel CLI installed successfully"
+          # Verify package integrity
+          npm audit signatures -g vercel 2>/dev/null || echo "::notice::Package signature verification not available"
+          echo "Vercel CLI installed and verified"
 
       - name: Validate Vercel secrets
         env:

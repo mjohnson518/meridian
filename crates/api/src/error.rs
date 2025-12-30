@@ -1,6 +1,6 @@
 //! Error types for API operations
 
-use actix_web::{http::StatusCode, HttpResponse, ResponseError};
+use actix_web::{http::StatusCode, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use meridian_basket::BasketError;
 use meridian_db::DbError;
 use meridian_oracle::OracleError;
@@ -8,12 +8,16 @@ use serde::Serialize;
 use std::fmt;
 
 /// API error response
+/// HIGH-012: Includes request_id for easier debugging by API consumers
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
     pub error: String,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<String>,
+    /// Correlation/request ID for tracking this error
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
 }
 
 /// API errors
@@ -47,6 +51,48 @@ impl fmt::Display for ApiError {
     }
 }
 
+/// Extract correlation ID from request extensions
+/// HIGH-012: Used to include request_id in error responses
+fn get_correlation_id(req: &HttpRequest) -> Option<String> {
+    use crate::middleware::CorrelationId;
+
+    req.extensions()
+        .get::<CorrelationId>()
+        .map(|c| c.as_str().to_string())
+}
+
+impl ApiError {
+    /// Create an error response with the request ID included
+    /// HIGH-012: This method should be used instead of automatic ResponseError conversion
+    /// when you have access to the HttpRequest
+    pub fn to_response(&self, req: &HttpRequest) -> HttpResponse {
+        let error_type = self.error_type();
+        let request_id = get_correlation_id(req);
+
+        HttpResponse::build(self.status_code()).json(ErrorResponse {
+            error: error_type.to_string(),
+            message: self.to_string(),
+            details: None,
+            request_id,
+        })
+    }
+
+    /// Get the error type string for this error
+    fn error_type(&self) -> &'static str {
+        match self {
+            ApiError::BasketError(_) => "basket_error",
+            ApiError::OracleError(_) => "oracle_error",
+            ApiError::DatabaseError(_) => "database_error",
+            ApiError::NotFound(_) => "not_found",
+            ApiError::BadRequest(_) => "bad_request",
+            ApiError::Unauthorized(_) => "unauthorized",
+            ApiError::Forbidden(_) => "forbidden",
+            ApiError::OracleNotConfigured => "oracle_not_configured",
+            ApiError::InternalError(_) => "internal_error",
+        }
+    }
+}
+
 impl ResponseError for ApiError {
     fn status_code(&self) -> StatusCode {
         match self {
@@ -60,22 +106,14 @@ impl ResponseError for ApiError {
     }
 
     fn error_response(&self) -> HttpResponse {
-        let error_type = match self {
-            ApiError::BasketError(_) => "basket_error",
-            ApiError::OracleError(_) => "oracle_error",
-            ApiError::DatabaseError(_) => "database_error",
-            ApiError::NotFound(_) => "not_found",
-            ApiError::BadRequest(_) => "bad_request",
-            ApiError::Unauthorized(_) => "unauthorized",
-            ApiError::Forbidden(_) => "forbidden",
-            ApiError::OracleNotConfigured => "oracle_not_configured",
-            ApiError::InternalError(_) => "internal_error",
-        };
-
+        // Note: ResponseError doesn't have access to HttpRequest
+        // For request_id in errors, handlers should use ApiError::to_response(req) instead
+        // The request_id is still available in X-Correlation-ID response header
         HttpResponse::build(self.status_code()).json(ErrorResponse {
-            error: error_type.to_string(),
+            error: self.error_type().to_string(),
             message: self.to_string(),
             details: None,
+            request_id: None, // Not available without HttpRequest
         })
     }
 }
