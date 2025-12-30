@@ -47,13 +47,28 @@ ethers = { version = "2.0", features = ["ws", "rustls"] }
 # HTTP client
 reqwest = { version = "0.11", features = ["json"] }
 
-# Logging
+# Logging and Observability
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# OpenTelemetry for distributed tracing (CRIT-003)
+opentelemetry = { version = "0.27", default-features = false, features = ["trace"] }
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", features = ["tonic", "trace"] }
+tracing-opentelemetry = "0.28"
+
+# Metrics (CRIT-004)
+actix-web-opentelemetry = { version = "0.19", features = ["metrics"] }
+opentelemetry-prometheus = "0.27"
+prometheus = "0.13"
 
 # UUID
 uuid = { version = "1.6", features = ["v4", "serde"] }
 
 # Testing
 mockall = "0.12"
+
+# OpenAPI documentation
+utoipa = { version = "4.2", features = ["actix_extras", "uuid", "chrono"] }
+utoipa-swagger-ui = { version = "6.0", features = ["actix-web"] }
 

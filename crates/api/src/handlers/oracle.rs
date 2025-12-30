@@ -16,6 +16,15 @@ use std::sync::{Arc, OnceLock};
 /// Get all current prices
 ///
 /// GET /api/v1/oracle/prices
+#[utoipa::path(
+    get,
+    path = "/api/v1/oracle/prices",
+    tag = "oracle",
+    responses(
+        (status = 200, description = "All current prices", body = PricesResponse),
+        (status = 503, description = "Oracle not configured")
+    )
+)]
 pub async fn get_prices(state: web::Data<Arc<AppState>>) -> Result<HttpResponse, ApiError> {
     tracing::debug!("Fetching all oracle prices");
 
@@ -50,6 +59,19 @@ pub async fn get_prices(state: web::Data<Arc<AppState>>) -> Result<HttpResponse,
 /// Get price for a specific currency pair
 ///
 /// GET /api/v1/oracle/prices/{pair}
+#[utoipa::path(
+    get,
+    path = "/api/v1/oracle/prices/{pair}",
+    tag = "oracle",
+    params(
+        ("pair" = String, Path, description = "Currency pair (e.g., EUR/USD)")
+    ),
+    responses(
+        (status = 200, description = "Price for the pair", body = PriceResponse),
+        (status = 404, description = "Price feed not found"),
+        (status = 503, description = "Oracle not configured")
+    )
+)]
 pub async fn get_price(
     state: web::Data<Arc<AppState>>,
     path: web::Path<String>,
@@ -77,6 +99,21 @@ pub async fn get_price(
 ///
 /// POST /api/v1/oracle/prices/{pair}/update
 /// CRIT-008: Requires admin role (not just authentication)
+#[utoipa::path(
+    post,
+    path = "/api/v1/oracle/prices/{pair}/update",
+    tag = "oracle",
+    security(("bearer_auth" = [])),
+    params(
+        ("pair" = String, Path, description = "Currency pair to update")
+    ),
+    responses(
+        (status = 200, description = "Price updated", body = PriceResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin role required"),
+        (status = 503, description = "Oracle not configured")
+    )
+)]
 pub async fn update_price(
     state: web::Data<Arc<AppState>>,
     http_req: HttpRequest,
@@ -140,6 +177,20 @@ pub async fn update_price(
 ///
 /// POST /api/v1/oracle/feeds
 /// MED-003: Requires admin role
+#[utoipa::path(
+    post,
+    path = "/api/v1/oracle/feeds",
+    tag = "oracle",
+    security(("bearer_auth" = [])),
+    request_body = RegisterFeedRequest,
+    responses(
+        (status = 201, description = "Price feed registered"),
+        (status = 400, description = "Invalid address"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin role required"),
+        (status = 503, description = "Oracle not configured")
+    )
+)]
 pub async fn register_price_feed(
     state: web::Data<Arc<AppState>>,
     http_req: HttpRequest,

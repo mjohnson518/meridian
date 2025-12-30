@@ -8,51 +8,91 @@ use rust_decimal::Decimal;
 use serde::Serialize;
 use std::str::FromStr;
 use std::sync::Arc;
+use utoipa::ToSchema;
 
 /// Bond holding with financial values as strings to avoid floating-point precision issues
 /// SECURITY: Per CLAUDE.md - NO floating-point for money
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct BondHolding {
+    /// ISIN identifier
+    #[schema(example = "DE0001102440")]
     pub isin: String,
+    /// Bond name
+    #[schema(example = "German Bund 2.50% Oct 2027")]
     pub name: String,
+    /// Maturity date (YYYY-MM-DD)
+    #[schema(example = "2027-10-15")]
     pub maturity: String,
-    pub quantity: String,   // Changed from f64 to String for precision
-    pub price: String,      // Changed from f64 to String for precision
-    pub value: String,      // Changed from f64 to String for precision
-    pub r#yield: String,    // Changed from f64 to String for precision
+    /// Quantity held (as string for precision)
+    #[schema(example = "10050.00")]
+    pub quantity: String,
+    /// Current price (as string for precision)
+    #[schema(example = "99.50")]
+    pub price: String,
+    /// Total value (as string for precision)
+    #[schema(example = "10004750.00")]
+    pub value: String,
+    /// Yield percentage (as string for precision)
+    #[schema(example = "2.65")]
+    pub r#yield: String,
+    /// Credit rating
+    #[schema(example = "AAA")]
     pub rating: String,
 }
 
 /// Currency breakdown with financial values as strings
 /// SECURITY: Per CLAUDE.md - NO floating-point for money
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CurrencyBreakdown {
+    /// Currency code
+    #[schema(example = "EUR")]
     pub currency: String,
-    pub value: String,      // Changed from f64 to String for precision
-    pub percentage: String, // Changed from f64 to String for precision
+    /// Value in currency (as string for precision)
+    #[schema(example = "10042250.00")]
+    pub value: String,
+    /// Percentage of total reserves
+    #[schema(example = "100.00")]
+    pub percentage: String,
 }
 
 /// History point with financial values as strings
 /// SECURITY: Per CLAUDE.md - NO floating-point for money
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct HistoryPoint {
+    /// Unix timestamp in milliseconds
     pub timestamp: i64,
-    pub ratio: String,      // Changed from f64 to String for precision
-    pub total_value: String,// Changed from f64 to String for precision
+    /// Reserve ratio (as string for precision)
+    #[schema(example = "100.42")]
+    pub ratio: String,
+    /// Total value (as string for precision)
+    #[schema(example = "10042250.00")]
+    pub total_value: String,
 }
 
-#[derive(Debug, Serialize)]
+/// Reserve data response
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ReserveData {
+    /// Total reserve value (as string for precision)
+    #[schema(example = "10042250.00")]
     pub total_value: String,
+    /// Reserve-to-supply ratio percentage
+    #[schema(example = "100.42")]
     pub reserve_ratio: String,
+    /// Trend change from previous period
+    #[schema(example = "0.42")]
     pub trend: String,
+    /// Number of active currency types
     pub active_currencies: i32,
+    /// Sovereign bond holdings
     pub bond_holdings: Vec<BondHolding>,
+    /// Historical reserve data points
     pub history: Vec<HistoryPoint>,
+    /// Currency breakdown
     pub currencies: Vec<CurrencyBreakdown>,
     /// Indicates this is simulated demo data, not real reserve verification
     pub demo_mode: bool,
     /// Source of reserve data (database, demo, or error)
+    #[schema(example = "database")]
     pub data_source: String,
 }
 
@@ -66,15 +106,35 @@ struct StablecoinReserves {
     status: String,
 }
 
-#[derive(Debug, Serialize)]
+/// Attestation status response
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AttestationStatus {
+    /// ISO 8601 timestamp of last attestation
+    #[schema(example = "2025-01-01T11:15:00Z")]
     pub timestamp: String,
+    /// Attestation status
+    #[schema(example = "healthy")]
     pub status: String,
+    /// ISO 8601 timestamp of next scheduled attestation
+    #[schema(example = "2025-01-01T17:15:00Z")]
     pub next_attestation: String,
 }
 
 /// GET /api/v1/reserves/{currency}
 /// SECURITY: Requires authentication to view reserve data
+#[utoipa::path(
+    get,
+    path = "/api/v1/reserves/{currency}",
+    tag = "reserves",
+    security(("bearer_auth" = [])),
+    params(
+        ("currency" = String, Path, description = "Currency code (e.g., EUR, GBP, JPY)")
+    ),
+    responses(
+        (status = 200, description = "Reserve data for currency", body = ReserveData),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn get_reserves(
     state: web::Data<Arc<AppState>>,
     currency: web::Path<String>,
@@ -228,9 +288,24 @@ fn generate_history_placeholder(current_value: f64, current_ratio: f64) -> Vec<H
 }
 
 /// GET /api/v1/attestation/latest
+/// CRIT-018 FIX: Requires authentication to prevent information disclosure
+#[utoipa::path(
+    get,
+    path = "/api/v1/attestation/latest",
+    tag = "reserves",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Latest attestation status", body = AttestationStatus),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn get_attestation_status(
-    _state: web::Data<Arc<AppState>>,
+    state: web::Data<Arc<AppState>>,
+    req: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
+    // CRIT-018: Verify authentication before returning attestation status
+    verify_authenticated(&state.db_pool, &req).await?;
+
     let now = Utc::now();
     let last_attestation = now - Duration::minutes(45); // Attested 45 mins ago
     let next_attestation = last_attestation + Duration::hours(6);
@@ -279,22 +354,5 @@ async fn verify_authenticated(
     }
 }
 
-/// Hash token for database lookup - must match auth.rs hash_token
-/// CRIT-001: Added salted hashing to match session storage
-fn hash_token_for_lookup(token: &str) -> String {
-    use sha2::{Sha256, Digest};
-    use std::sync::OnceLock;
-
-    static TOKEN_SALT: OnceLock<String> = OnceLock::new();
-
-    let salt = TOKEN_SALT.get_or_init(|| {
-        std::env::var("SESSION_TOKEN_SALT").unwrap_or_else(|_| {
-            "dev-session-salt-not-for-production".to_string()
-        })
-    });
-
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    hasher.update(salt.as_bytes());
-    hex::encode(hasher.finalize())
-}
+// HIGH-003: Use centralized token hashing from auth_utils
+use super::auth_utils::hash_token_for_lookup;

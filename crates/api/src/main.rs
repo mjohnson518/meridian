@@ -2,25 +2,26 @@
 //!
 //! HTTP API for managing multi-currency stablecoins
 
-mod error;
-mod handlers;
 mod middleware;
-mod models;
-mod routes;
-mod state;
+mod openapi;
 
 use actix_cors::Cors;
 use actix_governor::{Governor, GovernorConfigBuilder};
 use actix_web::{middleware::{DefaultHeaders, Logger}, web, App, HttpServer};
+use meridian_api::{routes, state::AppState, telemetry};
 use middleware::CorrelationIdMiddleware;
 use meridian_db::{create_pool, run_migrations};
-use state::AppState;
+use openapi::ApiDoc;
 use std::sync::Arc;
+use std::time::Duration;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // Initialize logging
-    tracing_subscriber::fmt::init();
+    // CRIT-003: Initialize telemetry with OpenTelemetry support
+    let telemetry_config = telemetry::TelemetryConfig::from_env();
+    telemetry::init_telemetry(telemetry_config);
 
     tracing::info!("Starting Meridian API server...");
 
@@ -105,9 +106,11 @@ async fn main() -> std::io::Result<()> {
 
     // Configure rate limiting: ~100 requests per minute per IP
     // per_second(2) = 2 tokens/sec = 120/min, burst_size(10) = max burst
+    // HIGH-010: Enable rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
     let governor_config = GovernorConfigBuilder::default()
         .per_second(2)
         .burst_size(10)
+        .use_headers() // Enable X-RateLimit-* headers in responses
         .finish()
         .expect("Failed to build rate limiter config");
 
@@ -120,6 +123,14 @@ async fn main() -> std::io::Result<()> {
         .unwrap_or(256 * 1024); // Default 256KB
 
     tracing::info!("JSON payload limit: {} bytes", json_limit);
+
+    // HIGH-009: Configure HTTP request timeout to prevent hanging requests
+    let request_timeout_secs = std::env::var("HTTP_REQUEST_TIMEOUT_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(60u64); // Default 60 seconds
+
+    tracing::info!("HTTP request timeout: {} seconds", request_timeout_secs);
 
     // Start HTTP server
     HttpServer::new(move || {
@@ -175,9 +186,18 @@ async fn main() -> std::io::Result<()> {
             .wrap(Governor::new(&governor_config))
             .wrap(Logger::default())
             .wrap(cors)
+            // CRIT-002: OpenAPI documentation and Swagger UI
+            .service(
+                SwaggerUi::new("/swagger-ui/{_:.*}")
+                    .url("/api-docs/openapi.json", ApiDoc::openapi())
+            )
             .configure(routes::configure)
     })
     .bind((host.as_str(), port))?
+    // HIGH-009: HTTP timeouts to prevent hanging requests
+    .client_request_timeout(Duration::from_secs(request_timeout_secs))
+    .client_disconnect_timeout(Duration::from_secs(5))
+    .keep_alive(Duration::from_secs(75)) // Keep-alive slightly longer than client timeout
     .run()
     .await
 }

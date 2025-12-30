@@ -1,7 +1,10 @@
 //! Basket management handlers
 
 use crate::error::{ApiError, handle_db_error};
-use crate::models::*;
+use crate::models::{
+    BasketResponse, BasketValueResponse, CreateCustomBasketRequest, CreateImfSdrBasketRequest,
+    CreateSingleCurrencyBasketRequest, PaginatedResponse, PaginationQuery,
+};
 use crate::state::AppState;
 use actix_web::{web, HttpRequest, HttpResponse};
 use chrono::Utc;
@@ -15,6 +18,18 @@ use uuid::Uuid;
 ///
 /// POST /api/v1/baskets/single-currency
 /// MED-001: Requires authentication
+#[utoipa::path(
+    post,
+    path = "/api/v1/baskets/single-currency",
+    tag = "baskets",
+    security(("bearer_auth" = [])),
+    request_body = CreateSingleCurrencyBasketRequest,
+    responses(
+        (status = 201, description = "Basket created successfully", body = BasketResponse),
+        (status = 400, description = "Invalid request"),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn create_single_currency_basket(
     state: web::Data<Arc<AppState>>,
     http_req: HttpRequest,
@@ -51,6 +66,18 @@ pub async fn create_single_currency_basket(
 ///
 /// POST /api/v1/baskets/imf-sdr
 /// MED-001: Requires authentication
+#[utoipa::path(
+    post,
+    path = "/api/v1/baskets/imf-sdr",
+    tag = "baskets",
+    security(("bearer_auth" = [])),
+    request_body = CreateImfSdrBasketRequest,
+    responses(
+        (status = 201, description = "IMF SDR basket created", body = BasketResponse),
+        (status = 400, description = "Invalid request"),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn create_imf_sdr_basket(
     state: web::Data<Arc<AppState>>,
     http_req: HttpRequest,
@@ -79,6 +106,18 @@ pub async fn create_imf_sdr_basket(
 ///
 /// POST /api/v1/baskets/custom
 /// MED-001: Requires authentication
+#[utoipa::path(
+    post,
+    path = "/api/v1/baskets/custom",
+    tag = "baskets",
+    security(("bearer_auth" = [])),
+    request_body = CreateCustomBasketRequest,
+    responses(
+        (status = 201, description = "Custom basket created", body = BasketResponse),
+        (status = 400, description = "Invalid request"),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn create_custom_basket(
     state: web::Data<Arc<AppState>>,
     http_req: HttpRequest,
@@ -131,13 +170,30 @@ pub async fn create_custom_basket(
 /// Get basket by ID
 ///
 /// GET /api/v1/baskets/{id}
+/// CRIT-005: Requires authentication
+#[utoipa::path(
+    get,
+    path = "/api/v1/baskets/{id}",
+    tag = "baskets",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = Uuid, Path, description = "Basket UUID")
+    ),
+    responses(
+        (status = 200, description = "Basket details", body = BasketResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Basket not found")
+    )
+)]
 pub async fn get_basket(
     state: web::Data<Arc<AppState>>,
+    http_req: HttpRequest,
     path: web::Path<Uuid>,
 ) -> Result<HttpResponse, ApiError> {
-    let basket_id = path.into_inner();
+    // CRIT-005: Verify user is authenticated before allowing basket access
+    let _user_id = get_authenticated_user_id(state.db_pool.as_ref(), &http_req).await?;
 
-    tracing::debug!(id = %basket_id, "Fetching basket");
+    let basket_id = path.into_inner();
 
     tracing::debug!(id = %basket_id, "Fetching basket");
 
@@ -156,36 +212,87 @@ pub async fn get_basket(
     Ok(HttpResponse::Ok().json(BasketResponse::from(basket)))
 }
 
-/// List all baskets
+/// List all baskets with pagination
 ///
-/// GET /api/v1/baskets
-pub async fn list_baskets(state: web::Data<Arc<AppState>>) -> Result<HttpResponse, ApiError> {
-    tracing::debug!("Listing all baskets");
+/// GET /api/v1/baskets?limit=20&offset=0
+/// CRIT-005: Requires authentication
+/// CRIT-013: Safe pagination with max limit of 100
+#[utoipa::path(
+    get,
+    path = "/api/v1/baskets",
+    tag = "baskets",
+    security(("bearer_auth" = [])),
+    params(PaginationQuery),
+    responses(
+        (status = 200, description = "List of baskets", body = PaginatedBasketResponse),
+        (status = 401, description = "Unauthorized")
+    )
+)]
+pub async fn list_baskets(
+    state: web::Data<Arc<AppState>>,
+    http_req: HttpRequest,
+    query: web::Query<PaginationQuery>,
+) -> Result<HttpResponse, ApiError> {
+    // CRIT-005: Verify user is authenticated before allowing basket listing
+    let _user_id = get_authenticated_user_id(state.db_pool.as_ref(), &http_req).await?;
 
-    tracing::debug!("Listing all baskets");
+    let pagination = query.into_inner();
+    tracing::debug!(
+        limit = pagination.safe_limit(),
+        offset = pagination.offset(),
+        "Listing baskets with pagination"
+    );
 
     let basket_repo = BasketRepository::new((*state.db_pool).clone());
-    // Default pagination: limit 100, offset 0
-    let baskets = basket_repo.list(100, 0).await.map_err(|e| {
-        tracing::error!("Failed to list baskets: {}", e);
-        ApiError::InternalError("Database error".to_string())
-    })?;
+    // CRIT-013: Use safe pagination (max 100 enforced)
+    let baskets = basket_repo
+        .list(pagination.safe_limit(), pagination.offset())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to list baskets: {}", e);
+            ApiError::InternalError("Database error".to_string())
+        })?;
 
-    let responses: Vec<BasketResponse> = baskets.into_iter().map(BasketResponse::from).collect();
+    let items: Vec<BasketResponse> = baskets.into_iter().map(BasketResponse::from).collect();
 
-    Ok(HttpResponse::Ok().json(responses))
+    let response = PaginatedResponse {
+        items,
+        limit: pagination.limit.min(100),
+        offset: pagination.offset,
+        total: None, // Could add count query if needed
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }
 
 /// Calculate basket value
 ///
 /// GET /api/v1/baskets/{id}/value
+/// CRIT-018 FIX: Requires authentication to prevent information disclosure
+#[utoipa::path(
+    get,
+    path = "/api/v1/baskets/{id}/value",
+    tag = "baskets",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = Uuid, Path, description = "Basket UUID")
+    ),
+    responses(
+        (status = 200, description = "Basket value calculation", body = BasketValueResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Basket not found"),
+        (status = 503, description = "Oracle not configured")
+    )
+)]
 pub async fn get_basket_value(
     state: web::Data<Arc<AppState>>,
+    http_req: HttpRequest,
     path: web::Path<Uuid>,
 ) -> Result<HttpResponse, ApiError> {
-    let basket_id = path.into_inner();
+    // CRIT-018: Verify user is authenticated before returning basket value with FX rates
+    let _user_id = get_authenticated_user_id(state.db_pool.as_ref(), &http_req).await?;
 
-    tracing::debug!(id = %basket_id, "Calculating basket value");
+    let basket_id = path.into_inner();
 
     tracing::debug!(id = %basket_id, "Calculating basket value");
 
@@ -261,22 +368,5 @@ async fn get_authenticated_user_id(
     }
 }
 
-/// Hash token for database lookup - must match auth.rs hash_token
-/// CRIT-001: Added salted hashing to match session storage
-fn hash_token_for_lookup(token: &str) -> String {
-    use sha2::{Sha256, Digest};
-    use std::sync::OnceLock;
-
-    static TOKEN_SALT: OnceLock<String> = OnceLock::new();
-
-    let salt = TOKEN_SALT.get_or_init(|| {
-        std::env::var("SESSION_TOKEN_SALT").unwrap_or_else(|_| {
-            "dev-session-salt-not-for-production".to_string()
-        })
-    });
-
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    hasher.update(salt.as_bytes());
-    hex::encode(hasher.finalize())
-}
+// HIGH-003: Use centralized token hashing from auth_utils
+use super::auth_utils::hash_token_for_lookup;

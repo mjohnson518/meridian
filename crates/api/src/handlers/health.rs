@@ -5,13 +5,21 @@ use crate::models::HealthResponse;
 use crate::state::AppState;
 use actix_web::{web, HttpRequest, HttpResponse};
 use meridian_db::BasketRepository;
-use sha2::{Sha256, Digest};
 use std::sync::Arc;
 use std::time::Instant;
 
 /// Health check endpoint with database verification
 ///
 /// GET /health
+#[utoipa::path(
+    get,
+    path = "/health",
+    tag = "health",
+    responses(
+        (status = 200, description = "Service is healthy", body = HealthResponse),
+        (status = 503, description = "Service is unhealthy")
+    )
+)]
 pub async fn health_check(state: web::Data<Arc<AppState>>) -> HttpResponse {
     let start = Instant::now();
 
@@ -55,6 +63,18 @@ pub async fn health_check(state: web::Data<Arc<AppState>>) -> HttpResponse {
 ///
 /// GET /metrics
 /// BE-CRIT-006: Requires admin role - exposes sensitive operational data
+/// CRIT-004: Now includes OpenTelemetry/Prometheus registry metrics
+#[utoipa::path(
+    get,
+    path = "/metrics",
+    tag = "health",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Prometheus metrics", content_type = "text/plain"),
+        (status = 401, description = "Unauthorized - missing or invalid token"),
+        (status = 403, description = "Forbidden - admin role required")
+    )
+)]
 pub async fn metrics(
     state: web::Data<Arc<AppState>>,
     req: HttpRequest,
@@ -62,7 +82,9 @@ pub async fn metrics(
     // BE-CRIT-006: Verify user is authenticated AND has admin role
     verify_admin(state.db_pool.as_ref(), &req).await?;
 
-    let mut output = String::new();
+    // CRIT-004: Include OpenTelemetry/Prometheus registry metrics
+    use crate::telemetry;
+    let mut output = telemetry::prometheus_metrics();
 
     // Service info
     output.push_str("# HELP meridian_info Service information\n");
@@ -180,20 +202,5 @@ async fn verify_admin(
     }
 }
 
-/// Hash token for database lookup - must match auth.rs hash_token
-fn hash_token_for_lookup(token: &str) -> String {
-    use std::sync::OnceLock;
-
-    static TOKEN_SALT: OnceLock<String> = OnceLock::new();
-
-    let salt = TOKEN_SALT.get_or_init(|| {
-        std::env::var("SESSION_TOKEN_SALT").unwrap_or_else(|_| {
-            "dev-session-salt-not-for-production".to_string()
-        })
-    });
-
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    hasher.update(salt.as_bytes());
-    hex::encode(hasher.finalize())
-}
+// HIGH-003: Use centralized token hashing from auth_utils
+use super::auth_utils::hash_token_for_lookup;
