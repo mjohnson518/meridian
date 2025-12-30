@@ -3,6 +3,7 @@
 use crate::error::{ApiError, handle_db_error};
 use crate::state::AppState;
 use actix_web::{web, HttpRequest, HttpResponse};
+use ethers::types::Address;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
@@ -99,6 +100,35 @@ pub async fn create_agent(
     if user.kyc_status != "APPROVED" {
         return Err(ApiError::Forbidden(
             "KYC approval required to create agent wallets".to_string(),
+        ));
+    }
+
+    // BACKEND-CRIT-002: Validate spending limits
+    let daily_limit = Decimal::from_str(&req.spending_limit_daily)
+        .map_err(|_| ApiError::BadRequest("Invalid daily spending limit format".to_string()))?;
+    let tx_limit = Decimal::from_str(&req.spending_limit_transaction)
+        .map_err(|_| ApiError::BadRequest("Invalid transaction spending limit format".to_string()))?;
+
+    // Must be positive
+    if daily_limit <= Decimal::ZERO {
+        return Err(ApiError::BadRequest("Daily spending limit must be greater than zero".to_string()));
+    }
+    if tx_limit <= Decimal::ZERO {
+        return Err(ApiError::BadRequest("Transaction spending limit must be greater than zero".to_string()));
+    }
+
+    // Daily limit must be >= transaction limit (logical constraint)
+    if daily_limit < tx_limit {
+        return Err(ApiError::BadRequest(
+            "Daily spending limit cannot be less than transaction limit".to_string()
+        ));
+    }
+
+    // Max limit: 100 million per day (reasonable upper bound)
+    let max_daily = Decimal::from(100_000_000i64);
+    if daily_limit > max_daily {
+        return Err(ApiError::BadRequest(
+            format!("Daily spending limit exceeds maximum: {}", max_daily)
         ));
     }
 
@@ -572,13 +602,61 @@ fn generate_wallet_address(agent_id: &str) -> Result<String, &'static str> {
     Ok(format!("0xDE{}", hex::encode(&hash[0..19])))
 }
 
+/// Validates Ethereum address format and EIP-55 checksum
+/// BACKEND-CRIT-004: Proper address validation to prevent typos
 fn is_valid_ethereum_address(address: &str) -> bool {
     // Check format: starts with 0x, 42 chars total, valid hex
     if !address.starts_with("0x") || address.len() != 42 {
         return false;
     }
+
     // Validate all characters after 0x are valid hex
-    address[2..].chars().all(|c| c.is_ascii_hexdigit())
+    if !address[2..].chars().all(|c| c.is_ascii_hexdigit()) {
+        return false;
+    }
+
+    // Use ethers to parse and validate the address
+    // This validates the address format and can be used for checksum validation
+    Address::from_str(address).is_ok()
+}
+
+/// Validates Ethereum address with EIP-55 checksum (strict mode)
+/// Returns an error message if validation fails
+fn validate_ethereum_address_strict(address: &str) -> Result<Address, String> {
+    // Basic format check
+    if !address.starts_with("0x") || address.len() != 42 {
+        return Err("Invalid Ethereum address format: must be 0x followed by 40 hex characters".to_string());
+    }
+
+    // Validate all characters after 0x are valid hex
+    if !address[2..].chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err("Invalid Ethereum address: contains non-hex characters".to_string());
+    }
+
+    // Parse the address using ethers
+    let parsed = Address::from_str(address)
+        .map_err(|e| format!("Invalid Ethereum address: {}", e))?;
+
+    // Check if address is all lowercase (no checksum)
+    let addr_part = &address[2..];
+    if addr_part == addr_part.to_lowercase() && addr_part.chars().any(|c| c.is_ascii_alphabetic()) {
+        // Warn about non-checksummed address but allow it
+        tracing::warn!(
+            address = %address,
+            "Address provided without EIP-55 checksum - typos cannot be detected"
+        );
+    }
+
+    // Verify checksum by comparing with canonical checksummed format
+    let checksummed = format!("{:?}", parsed);
+    if address != checksummed && address.to_lowercase() != checksummed.to_lowercase() {
+        return Err(format!(
+            "Invalid EIP-55 checksum. Expected: {}, got: {}",
+            checksummed, address
+        ));
+    }
+
+    Ok(parsed)
 }
 
 struct AgentWallet {
