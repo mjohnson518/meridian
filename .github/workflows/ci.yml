@@ -87,6 +87,22 @@ jobs:
       - name: Run cargo audit
         run: cargo audit
 
+  secrets-scan:
+    runs-on: ubuntu-latest
+    name: Secrets Scanning
+
+    steps:
+      # DEVOPS-CRIT-002: Scan for exposed secrets, API keys, and credentials
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0 # Fetch full history for comprehensive scanning
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@cb7149a9b57195b609c63e8518d2c6056677d2d0 # v2.3.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }} # Optional: for enterprise features
+
   frontend:
     runs-on: ubuntu-latest
 
@@ -119,3 +135,80 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # DEVOPS-CRIT-005: Generate Software Bill of Materials
+  sbom:
+    runs-on: ubuntu-latest
+    name: SBOM Generation
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@d8352f6b1d2e870bc5716f46a5d354a8a5ab0d2d # 1.75.0
+        with:
+          toolchain: "1.75.0"
+
+      - name: Install cargo-sbom
+        run: cargo install cargo-sbom --version 0.9.1
+
+      - name: Generate Rust SBOM (CycloneDX)
+        run: |
+          cargo sbom --output-format cyclonedx-json > rust-sbom.json
+          echo "Generated Rust SBOM"
+
+      - name: Setup Node.js for frontend SBOM
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20'
+
+      - name: Generate Frontend SBOM
+        working-directory: meridian-frontend
+        run: |
+          npm ci
+          npx @cyclonedx/cyclonedx-npm --output-file frontend-sbom.json
+          echo "Generated Frontend SBOM"
+
+      - name: Upload SBOMs as artifacts
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: sbom-artifacts
+          path: |
+            rust-sbom.json
+            meridian-frontend/frontend-sbom.json
+          retention-days: 90
+
+  # DEVOPS-CRIT-006: Container vulnerability scanning
+  container-scan:
+    runs-on: ubuntu-latest
+    name: Container Security Scan
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Build Docker image for scanning
+        run: docker build -t meridian-api:scan .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # 0.29.0
+        with:
+          image-ref: 'meridian-api:scan'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Run Trivy SBOM scan
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # 0.29.0
+        with:
+          image-ref: 'meridian-api:scan'
+          format: 'cyclonedx'
+          output: 'container-sbom.json'
+
+      - name: Upload container SBOM
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: container-sbom
+          path: container-sbom.json
+          retention-days: 90
