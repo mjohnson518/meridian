@@ -8,6 +8,49 @@ use serde_json::Value as JsonValue;
 use sha2::{Sha256, Digest};
 use std::sync::Arc;
 
+/// SECURITY: Maximum allowed size for JSON fields (100KB)
+const MAX_JSON_SIZE_BYTES: usize = 100 * 1024;
+
+/// SECURITY: Maximum allowed depth for nested JSON objects
+const MAX_JSON_DEPTH: usize = 10;
+
+/// Validate JSON value size and depth to prevent abuse
+fn validate_json_field(value: &JsonValue, field_name: &str) -> Result<(), ApiError> {
+    // Check serialized size
+    let serialized = serde_json::to_string(value).map_err(|_| {
+        ApiError::BadRequest(format!("Invalid JSON in {}", field_name))
+    })?;
+
+    if serialized.len() > MAX_JSON_SIZE_BYTES {
+        return Err(ApiError::BadRequest(format!(
+            "{} exceeds maximum size of {}KB",
+            field_name,
+            MAX_JSON_SIZE_BYTES / 1024
+        )));
+    }
+
+    // Check depth
+    fn check_depth(v: &JsonValue, current: usize, max: usize) -> bool {
+        if current > max {
+            return false;
+        }
+        match v {
+            JsonValue::Object(map) => map.values().all(|v| check_depth(v, current + 1, max)),
+            JsonValue::Array(arr) => arr.iter().all(|v| check_depth(v, current + 1, max)),
+            _ => true,
+        }
+    }
+
+    if !check_depth(value, 0, MAX_JSON_DEPTH) {
+        return Err(ApiError::BadRequest(format!(
+            "{} exceeds maximum nesting depth of {}",
+            field_name, MAX_JSON_DEPTH
+        )));
+    }
+
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SubmitKycRequest {
     pub user_id: i32,
@@ -44,6 +87,12 @@ pub async fn submit_kyc(
     }
 
     tracing::info!(user_id = req.user_id, "KYC application submitted");
+
+    // SECURITY: Validate all JSON fields before storing
+    validate_json_field(&req.entity_info, "entity_info")?;
+    validate_json_field(&req.documents, "documents")?;
+    validate_json_field(&req.compliance, "compliance")?;
+    validate_json_field(&req.wallet, "wallet")?;
 
     // Combine all data into JSONB
     let application_data = serde_json::json!({
@@ -222,10 +271,27 @@ pub async fn reject_kyc(
     verify_admin(&state, &req).await?;
 
     let app_id = application_id.into_inner();
-    let rejection_reason = reason
+
+    // HIGH-013: Validate and sanitize rejection reason
+    let raw_reason = reason
         .get("reason")
         .and_then(|r| r.as_str())
         .unwrap_or("No reason provided");
+
+    // Validate max length (500 chars)
+    if raw_reason.len() > 500 {
+        return Err(ApiError::BadRequest("Rejection reason must be 500 characters or less".to_string()));
+    }
+
+    // Sanitize: Remove potentially dangerous characters (HTML tags, control chars)
+    // Order matters: escape & first to avoid double-escaping
+    let rejection_reason: String = raw_reason
+        .chars()
+        .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')
+        .collect::<String>()
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;");
 
     tracing::info!(application_id = app_id, "Rejecting KYC application");
 

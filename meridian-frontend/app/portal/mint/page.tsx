@@ -46,28 +46,33 @@ function MintInterface() {
   const bondRequired = usdValue * 1.02; // 102% to maintain buffer
   const totalCost = usdValue + issuanceFee;
 
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   const handleExecute = async () => {
     setLoading(true);
+    setNotification(null);
 
     try {
-      console.log(`[${mode}] Executing request:`, { amount, currency });
-
       // Use user ID from auth context or fallback to test user ID (to ensure backend works)
       const userId = user?.id ? parseInt(user.id) : 1;
 
       if (mode === 'mint') {
-        const result = await import('@/lib/api/realtime-client').then(m => m.realtimeApi.mint(currency, amount, userId));
-        console.log('Mint success:', result);
+        await import('@/lib/api/realtime-client').then(m => m.realtimeApi.mint(currency, amount, userId));
       } else {
-        const result = await import('@/lib/api/realtime-client').then(m => m.realtimeApi.burn(currency, amount, userId));
-        console.log('Burn success:', result);
+        await import('@/lib/api/realtime-client').then(m => m.realtimeApi.burn(currency, amount, userId));
       }
 
-      alert(`${mode === 'mint' ? 'Mint' : 'Burn'} request submitted successfully! Settlement in T+1.`);
+      setNotification({
+        type: 'success',
+        message: `${mode === 'mint' ? 'Mint' : 'Burn'} request submitted successfully! Settlement in T+1.`
+      });
       setAmount(''); // Reset form
-    } catch (error: any) {
-      console.error('Operation failed:', error);
-      alert(`Operation failed: ${error.message || 'Please try again.'}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Please try again.';
+      setNotification({
+        type: 'error',
+        message: `Operation failed: ${message}`
+      });
     } finally {
       setLoading(false);
     }
@@ -122,6 +127,27 @@ function MintInterface() {
           {/* Main Panel */}
           <div className="col-span-12 lg:col-span-8">
             <SacredCard>
+              {/* Notification Banner */}
+              {notification && (
+                <div
+                  className={`mb-6 p-4 rounded border ${
+                    notification.type === 'success'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-rose-50 border-rose-200 text-rose-800'
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="font-mono text-sm">{notification.message}</span>
+                    <button
+                      onClick={() => setNotification(null)}
+                      className="text-xs font-mono uppercase hover:opacity-70"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Mode Toggle */}
               <div className="grid grid-cols-2 gap-4 mb-8">
                 <button

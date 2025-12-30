@@ -362,18 +362,19 @@ async fn get_fx_rate(
         tracing::warn!("STRICT_FX_RATES=false - allowing stale fallback rates in production (DANGEROUS)");
     }
 
+    // HIGH-011: Updated fallback rates as of 2025-12-29
     tracing::warn!(
         currency = currency,
-        "Using FALLBACK FX rates - these may be stale. Last updated: 2024-01-01"
+        "Using FALLBACK FX rates - these may be stale. Last updated: 2025-12-29"
     );
 
     let rate = match currency {
-        "EUR" => "1.09",
-        "GBP" => "1.22",
-        "JPY" => "0.0067",
-        "MXN" => "0.058",
-        "BRL" => "0.20",
-        "ARS" => "0.0011",
+        "EUR" => "1.04",  // HIGH-011: Updated from 1.09
+        "GBP" => "1.25",  // HIGH-011: Updated from 1.22
+        "JPY" => "0.0063", // HIGH-011: Updated from 0.0067
+        "MXN" => "0.049", // HIGH-011: Updated from 0.058
+        "BRL" => "0.16",  // HIGH-011: Updated from 0.20
+        "ARS" => "0.00098", // HIGH-011: Updated from 0.0011
         _ => return Err(ApiError::BadRequest(format!("Unsupported currency: {}", currency))),
     };
 

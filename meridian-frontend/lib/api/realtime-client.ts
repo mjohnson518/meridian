@@ -242,6 +242,7 @@ export const realtimeApi = {
     const response = await fetch(`${API_BASE_URL}/operations/mint`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // SECURITY: Send httpOnly cookies for authentication
       body: JSON.stringify({
         user_id: userId,
         currency,
@@ -261,6 +262,7 @@ export const realtimeApi = {
     const response = await fetch(`${API_BASE_URL}/operations/burn`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // SECURITY: Send httpOnly cookies for authentication
       body: JSON.stringify({
         user_id: userId,
         currency,
@@ -282,6 +284,7 @@ export const realtimeApi = {
       const response = await fetch(`${API_BASE_URL}/kyc/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // SECURITY: Send httpOnly cookies for authentication
         body: JSON.stringify(data)
       });
 

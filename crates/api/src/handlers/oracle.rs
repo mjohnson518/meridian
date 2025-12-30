@@ -76,14 +76,19 @@ pub async fn get_price(
 /// Update price for a specific currency pair
 ///
 /// POST /api/v1/oracle/prices/{pair}/update
-/// MED-002: Requires authentication
+/// CRIT-008: Requires admin role (not just authentication)
 pub async fn update_price(
     state: web::Data<Arc<AppState>>,
     http_req: HttpRequest,
     path: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
-    // MED-002: Verify user is authenticated before allowing price update
-    let _user_id = get_authenticated_user_id(state.db_pool.as_ref(), &http_req).await?;
+    // CRIT-008: Verify user is authenticated AND has admin role
+    let user = get_authenticated_user_with_role(state.db_pool.as_ref(), &http_req).await?;
+    // HIGH-012: Case-insensitive role check
+    if user.role.to_uppercase() != "ADMIN" {
+        tracing::warn!(user_id = user.id, role = %user.role, "Unauthorized price update attempt");
+        return Err(ApiError::Forbidden("Admin role required to update prices".to_string()));
+    }
 
     let pair = path.into_inner();
 
@@ -142,7 +147,8 @@ pub async fn register_price_feed(
 ) -> Result<HttpResponse, ApiError> {
     // MED-003: Verify user is authenticated AND has admin role
     let user = get_authenticated_user_with_role(state.db_pool.as_ref(), &http_req).await?;
-    if user.role != "admin" {
+    // HIGH-012: Case-insensitive role check
+    if user.role.to_uppercase() != "ADMIN" {
         tracing::warn!(user_id = user.id, role = %user.role, "Unauthorized price feed registration attempt");
         return Err(ApiError::Forbidden("Admin role required to register price feeds".to_string()));
     }

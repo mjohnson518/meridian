@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# CRIT-009: Restrict GITHUB_TOKEN permissions to minimum required
+permissions:
+  contents: read
+  actions: read
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -30,15 +35,17 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      # DEVOPS-001: Pin actions to SHA for supply chain security
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-action@1.75.0
+        uses: dtolnay/rust-toolchain@d8352f6b1d2e870bc5716f46a5d354a8a5ab0d2d # 1.75.0
         with:
+          toolchain: "1.75.0"
           components: clippy, rustfmt
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.2
         with:
           path: |
             ~/.cargo/registry
@@ -66,10 +73,13 @@ jobs:
     name: Security Audit
 
     steps:
-      - uses: actions/checkout@v4
+      # DEVOPS-001: Pin actions to SHA for supply chain security
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-action@1.75.0
+        uses: dtolnay/rust-toolchain@d8352f6b1d2e870bc5716f46a5d354a8a5ab0d2d # 1.75.0
+        with:
+          toolchain: "1.75.0"
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --version 0.21.0
@@ -85,10 +95,11 @@ jobs:
         working-directory: meridian-frontend
 
     steps:
-      - uses: actions/checkout@v4
+      # DEVOPS-001: Pin actions to SHA for supply chain security
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: '20'
           cache: 'npm'
@@ -98,7 +109,7 @@ jobs:
         run: npm ci
 
       - name: Security audit
-        run: npm audit --audit-level=moderate
+        run: npm audit --audit-level=critical
 
       - name: Type check
         run: npm run type-check

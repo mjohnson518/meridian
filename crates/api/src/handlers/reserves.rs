@@ -4,8 +4,10 @@ use crate::error::{ApiError, handle_db_error};
 use crate::state::AppState;
 use actix_web::{web, HttpRequest, HttpResponse};
 use chrono::{Duration, Utc};
+use rust_decimal::Decimal;
 use serde::Serialize;
 use sha2::{Sha256, Digest};
+use std::str::FromStr;
 use std::sync::Arc;
 
 #[derive(Debug, Serialize)]
@@ -91,16 +93,23 @@ pub async fn get_reserves(
                 "Real reserve data retrieved from database"
             );
 
-            // Parse decimal values
-            let supply = reserves.total_supply.parse::<f64>().unwrap_or(0.0);
-            let reserve_value = reserves.total_reserve_value.parse::<f64>().unwrap_or(0.0);
+            // SECURITY-001: Use Decimal for financial calculations (NO FLOATING POINT)
+            let supply = Decimal::from_str(&reserves.total_supply)
+                .unwrap_or(Decimal::ZERO);
+            let reserve_value = Decimal::from_str(&reserves.total_reserve_value)
+                .unwrap_or(Decimal::ZERO);
 
-            // Calculate reserve ratio (reserves / supply * 100)
-            let ratio = if supply > 0.0 {
-                (reserve_value / supply) * 100.0
+            // Calculate reserve ratio (reserves / supply * 100) using Decimal
+            let hundred = Decimal::from(100);
+            let ratio = if supply > Decimal::ZERO {
+                (reserve_value / supply) * hundred
             } else {
-                100.0 // No supply means fully backed by default
+                hundred // No supply means fully backed by default
             };
+
+            // Convert to f64 only for JSON response display fields (not calculations)
+            let display_reserve_value = reserve_value.to_string().parse::<f64>().unwrap_or(0.0);
+            let display_ratio = ratio.to_string().parse::<f64>().unwrap_or(100.0);
 
             let response = ReserveData {
                 total_value: format!("{:.2}", reserve_value),
@@ -108,11 +117,11 @@ pub async fn get_reserves(
                 trend: "0.00".to_string(), // Would need historical data
                 active_currencies: 1,
                 bond_holdings: vec![], // Real holdings would come from custody integration
-                history: generate_history_placeholder(reserve_value, ratio),
+                history: generate_history_placeholder(display_reserve_value, display_ratio),
                 currencies: vec![
                     CurrencyBreakdown {
                         currency: currency_code.clone(),
-                        value: reserve_value,
+                        value: display_reserve_value,
                         percentage: 100.0,
                     }
                 ],

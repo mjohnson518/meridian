@@ -1,9 +1,11 @@
 //! Health check and metrics handlers
 
+use crate::error::ApiError;
 use crate::models::HealthResponse;
 use crate::state::AppState;
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use meridian_db::BasketRepository;
+use sha2::{Sha256, Digest};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -52,7 +54,14 @@ pub async fn health_check(state: web::Data<Arc<AppState>>) -> HttpResponse {
 /// Prometheus-compatible metrics endpoint
 ///
 /// GET /metrics
-pub async fn metrics(state: web::Data<Arc<AppState>>) -> HttpResponse {
+/// CRIT-006: Requires authentication - exposes sensitive operational data
+pub async fn metrics(
+    state: web::Data<Arc<AppState>>,
+    req: HttpRequest,
+) -> Result<HttpResponse, ApiError> {
+    // CRIT-006: Verify user is authenticated before exposing metrics
+    verify_authenticated(state.db_pool.as_ref(), &req).await?;
+
     let mut output = String::new();
 
     // Service info
@@ -117,7 +126,45 @@ pub async fn metrics(state: web::Data<Arc<AppState>>) -> HttpResponse {
         ));
     }
 
-    HttpResponse::Ok()
+    Ok(HttpResponse::Ok()
         .content_type("text/plain; version=0.0.4")
-        .body(output)
+        .body(output))
+}
+
+/// Verify user is authenticated
+/// CRIT-006: Helper function for metrics authentication
+async fn verify_authenticated(
+    pool: &sqlx::PgPool,
+    req: &HttpRequest,
+) -> Result<(), ApiError> {
+    let token = req
+        .headers()
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
+
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    let token_hash = hex::encode(hasher.finalize());
+
+    let session = sqlx::query!(
+        r#"
+        SELECT user_id
+        FROM sessions
+        WHERE access_token = $1 AND expires_at > NOW()
+        "#,
+        token_hash
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Database error checking auth: {}", e);
+        ApiError::InternalError("Database error".to_string())
+    })?;
+
+    match session {
+        Some(_) => Ok(()),
+        None => Err(ApiError::Unauthorized("Invalid or expired token".to_string())),
+    }
 }

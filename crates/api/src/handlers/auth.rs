@@ -392,6 +392,171 @@ pub async fn refresh_token(
     }))
 }
 
+/// POST /api/v1/auth/logout
+/// CRIT-007: Revoke current session tokens and clear cookies
+/// Allows users to invalidate their tokens before natural expiration
+pub async fn logout(
+    state: web::Data<Arc<AppState>>,
+    req: HttpRequest,
+) -> Result<HttpResponse, ApiError> {
+    // Extract token from Authorization header OR httpOnly cookie
+    let token = req
+        .cookie("meridian_access_token")
+        .map(|c| c.value().to_string())
+        .or_else(|| {
+            req.headers()
+                .get("Authorization")
+                .and_then(|h| h.to_str().ok())
+                .and_then(|h| h.strip_prefix("Bearer "))
+                .map(|s| s.to_string())
+        });
+
+    // If no token provided, still clear cookies and return success
+    // This handles edge case where cookies exist but header doesn't
+    if let Some(token) = token {
+        let token_hash = hash_token(&token);
+
+        // Delete the session from database
+        let result = sqlx::query!(
+            "DELETE FROM sessions WHERE access_token = $1",
+            token_hash
+        )
+        .execute(state.db_pool.as_ref())
+        .await;
+
+        match result {
+            Ok(r) => {
+                if r.rows_affected() > 0 {
+                    tracing::info!("Session revoked successfully");
+                } else {
+                    tracing::debug!("No session found to revoke (may already be expired)");
+                }
+            }
+            Err(e) => {
+                // Log error but don't fail - user intent is to logout
+                tracing::warn!("Failed to delete session from database: {}", e);
+            }
+        }
+    }
+
+    // SECURITY: Always clear cookies regardless of token validity
+    // This ensures client-side cleanup even if server-side fails
+    let is_production = std::env::var("ENVIRONMENT")
+        .map(|e| e.to_lowercase() == "production")
+        .unwrap_or(false);
+
+    // Create expired cookies to clear client-side tokens
+    let clear_access_cookie = Cookie::build("meridian_access_token".to_string(), "".to_string())
+        .path("/")
+        .http_only(true)
+        .same_site(SameSite::Strict)
+        .secure(is_production)
+        .max_age(actix_web::cookie::time::Duration::seconds(0)) // Immediate expiry
+        .finish();
+
+    let clear_refresh_cookie = Cookie::build("meridian_refresh_token".to_string(), "".to_string())
+        .path("/")
+        .http_only(true)
+        .same_site(SameSite::Strict)
+        .secure(is_production)
+        .max_age(actix_web::cookie::time::Duration::seconds(0))
+        .finish();
+
+    Ok(HttpResponse::Ok()
+        .cookie(clear_access_cookie)
+        .cookie(clear_refresh_cookie)
+        .json(serde_json::json!({
+            "message": "Logged out successfully"
+        })))
+}
+
+/// POST /api/v1/auth/logout-all
+/// CRIT-007: Revoke ALL sessions for the current user
+/// Use when user suspects account compromise
+pub async fn logout_all(
+    state: web::Data<Arc<AppState>>,
+    req: HttpRequest,
+) -> Result<HttpResponse, ApiError> {
+    // Extract and verify current token
+    let token = req
+        .cookie("meridian_access_token")
+        .map(|c| c.value().to_string())
+        .or_else(|| {
+            req.headers()
+                .get("Authorization")
+                .and_then(|h| h.to_str().ok())
+                .and_then(|h| h.strip_prefix("Bearer "))
+                .map(|s| s.to_string())
+        })
+        .ok_or_else(|| ApiError::Unauthorized("Missing authentication".to_string()))?;
+
+    let token_hash = hash_token(&token);
+
+    // Get user_id from current session
+    let session = sqlx::query!(
+        "SELECT user_id FROM sessions WHERE access_token = $1 AND expires_at > NOW()",
+        token_hash
+    )
+    .fetch_optional(state.db_pool.as_ref())
+    .await
+    .map_err(|e| {
+        tracing::error!("Database error during logout-all: {}", e);
+        ApiError::InternalError("Database error".to_string())
+    })?;
+
+    let session = match session {
+        Some(s) => s,
+        None => return Err(ApiError::Unauthorized("Invalid or expired token".to_string())),
+    };
+
+    // Delete ALL sessions for this user
+    let result = sqlx::query!(
+        "DELETE FROM sessions WHERE user_id = $1",
+        session.user_id
+    )
+    .execute(state.db_pool.as_ref())
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to delete all sessions: {}", e);
+        ApiError::InternalError("Failed to revoke sessions".to_string())
+    })?;
+
+    tracing::info!(
+        user_id = session.user_id,
+        sessions_revoked = result.rows_affected(),
+        "All sessions revoked"
+    );
+
+    // Clear cookies
+    let is_production = std::env::var("ENVIRONMENT")
+        .map(|e| e.to_lowercase() == "production")
+        .unwrap_or(false);
+
+    let clear_access_cookie = Cookie::build("meridian_access_token".to_string(), "".to_string())
+        .path("/")
+        .http_only(true)
+        .same_site(SameSite::Strict)
+        .secure(is_production)
+        .max_age(actix_web::cookie::time::Duration::seconds(0))
+        .finish();
+
+    let clear_refresh_cookie = Cookie::build("meridian_refresh_token".to_string(), "".to_string())
+        .path("/")
+        .http_only(true)
+        .same_site(SameSite::Strict)
+        .secure(is_production)
+        .max_age(actix_web::cookie::time::Duration::seconds(0))
+        .finish();
+
+    Ok(HttpResponse::Ok()
+        .cookie(clear_access_cookie)
+        .cookie(clear_refresh_cookie)
+        .json(serde_json::json!({
+            "message": "All sessions revoked",
+            "sessions_revoked": result.rows_affected()
+        })))
+}
+
 // Helper functions
 
 /// Create a secure httpOnly cookie for authentication

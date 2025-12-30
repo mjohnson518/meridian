@@ -1,4 +1,7 @@
 # Multi-stage build for minimal production image
+# SECURITY: Pin to SHA256 digest before production deployment
+# Get digest: docker pull rust:1.75-slim && docker inspect --format='{{index .RepoDigests 0}}' rust:1.75-slim
+# Example: FROM rust:1.75-slim@sha256:abc123...
 FROM rust:1.75-slim as builder
 
 WORKDIR /app
@@ -18,6 +21,8 @@ COPY crates ./crates
 RUN cargo build --release --bin meridian-api
 
 # Runtime stage
+# SECURITY: Pin to SHA256 digest before production deployment
+# Get digest: docker pull debian:bookworm-slim && docker inspect --format='{{index .RepoDigests 0}}' debian:bookworm-slim
 FROM debian:bookworm-slim
 
 # Install runtime dependencies (including curl for health check)

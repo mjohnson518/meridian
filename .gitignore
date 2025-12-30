@@ -111,3 +111,6 @@ TEST_*.sh
 docs/OPERATIONAL_ROADMAP.md
 docs/30_DAY_LAUNCH_ROADMAP.md
 meridian_issuer_tech_spec.md
+AUDIT_REPORT*.md
+PROGRESS*.md
+GIT_COMMANDS*.md

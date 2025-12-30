@@ -25,7 +25,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 .route("/login", web::post().to(handlers::login))
                 .route("/register", web::post().to(handlers::register))
                 .route("/verify", web::get().to(handlers::verify))
-                .route("/refresh", web::post().to(handlers::refresh_token)),
+                .route("/refresh", web::post().to(handlers::refresh_token))
+                // CRIT-007: Token revocation endpoints
+                .route("/logout", web::post().to(handlers::logout))
+                .route("/logout-all", web::post().to(handlers::logout_all)),
         )
         // KYC endpoints
         .service(

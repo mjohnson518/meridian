@@ -200,6 +200,8 @@ contract MeridianStablecoin is
     error AttestationBelowSupply();
     error TransferNotCompliant();
     error InvalidAdminAddress();
+    error InsufficientBurnBalance();
+    error NoSupplyToBurn();
 
     // ============ Initialization ============
 
@@ -311,8 +313,8 @@ contract MeridianStablecoin is
         if (isBlacklisted[msg.sender]) revert SenderBlacklisted();
 
         uint256 currentSupply = totalSupply();
-        require(balanceOf(msg.sender) >= amount, "Insufficient balance");
-        require(currentSupply > 0, "No supply to burn");
+        if (balanceOf(msg.sender) < amount) revert InsufficientBurnBalance();
+        if (currentSupply == 0) revert NoSupplyToBurn();
 
         // Calculate reserve to release BEFORE any state changes (pro-rata)
         // Note: This calculation must happen before _burn() changes the supply
@@ -341,11 +343,10 @@ contract MeridianStablecoin is
      * @notice Blacklist an address for compliance reasons
      * @param account Address to blacklist
      * @param reason Reason for blacklisting
-     * @dev Protected by pause mechanism for emergency scenarios
+     * @dev NOT protected by pause - compliance actions must work during emergencies
      */
     function blacklistAddress(address account, string memory reason)
         external
-        whenNotPaused
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         isBlacklisted[account] = true;
@@ -355,11 +356,10 @@ contract MeridianStablecoin is
     /**
      * @notice Remove an address from the blacklist
      * @param account Address to whitelist
-     * @dev Protected by pause mechanism for emergency scenarios
+     * @dev NOT protected by pause - compliance actions must work during emergencies
      */
     function whitelistAddress(address account)
         external
-        whenNotPaused
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         isBlacklisted[account] = false;

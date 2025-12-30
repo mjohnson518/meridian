@@ -5,6 +5,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# CRIT-009: Restrict GITHUB_TOKEN permissions to minimum required
+permissions:
+  contents: read
+  actions: read
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -20,7 +25,8 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - uses: actions/checkout@v4
+      # DEVOPS-001: Pin actions to SHA for supply chain security
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Install Railway CLI
         run: npm install -g @railway/cli@3.14.0
@@ -76,7 +82,8 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - uses: actions/checkout@v4
+      # DEVOPS-001: Pin actions to SHA for supply chain security
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Install Vercel CLI
         run: npm install -g vercel@37.14.1
@@ -104,21 +111,22 @@ jobs:
             exit 1
           fi
 
+      # CRIT-010: Use environment variables instead of CLI arguments for secrets
       - name: Pull Vercel Environment
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+        run: vercel pull --yes --environment=production
 
       - name: Build Project
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel build --prod --token=$VERCEL_TOKEN
+        run: vercel build --prod
 
       - name: Deploy to Vercel
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
+          vercel deploy --prebuilt --prod
           echo "Frontend deployment completed"
 
   # Notify on deployment status

@@ -107,8 +107,26 @@ export const STABLECOIN_ABI = [
   },
 ] as const
 
-// WalletConnect project ID (you'll need to get one from https://cloud.walletconnect.com)
-const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID'
+// WalletConnect project ID - get from https://cloud.walletconnect.com
+// SECURITY: Validate project ID in production to prevent misconfiguration
+const getWalletConnectProjectId = (): string => {
+  const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  if (!projectId || projectId === 'YOUR_PROJECT_ID') {
+    if (isProduction) {
+      console.error('[Web3] SECURITY ERROR: NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID not configured for production');
+      // Return empty string to disable WalletConnect in production without crashing
+      return '';
+    }
+    // Development fallback - WalletConnect may not work but app runs
+    console.warn('[Web3] WalletConnect project ID not configured - wallet connection may fail');
+    return 'YOUR_PROJECT_ID';
+  }
+  return projectId;
+};
+
+const walletConnectProjectId = getWalletConnectProjectId();
 
 // Wagmi config
 export const config = createConfig({

@@ -164,9 +164,18 @@ export const authClient = {
   },
 
   // Save session to localStorage
+  // SECURITY: Only store non-sensitive data for UI display
+  // Actual authentication uses httpOnly cookies set by backend
   saveSession(session: Session) {
     if (typeof window !== 'undefined') {
-      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      // Strip sensitive tokens before storing
+      const safeSession = {
+        user: session.user,
+        expiresAt: session.expiresAt,
+        // Note: accessToken/refreshToken NOT stored - handled by httpOnly cookies
+      };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(safeSession));
+      // WebSocket-only token (required because WS can't use cookies)
       localStorage.setItem(TOKEN_KEY, session.accessToken);
     }
   },
