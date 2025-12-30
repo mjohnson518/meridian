@@ -208,9 +208,12 @@ contract MeridianStablecoin is
     error AttestationBelowSupply();
     error TransferNotCompliant();
     error InvalidAdminAddress();
+    error InvalidOracleAddress();  // CONTRACT-CRIT-001: Oracle must be contract or zero
     error InsufficientBurnBalance();
     error NoSupplyToBurn();
-    error InsufficientReserves();  // CONTRACT-CRIT-001: Reserve underflow protection
+    error InsufficientReserves();  // Reserve underflow protection
+    error ReserveOverflow();        // SC-CRIT-001: Explicit overflow protection
+    error AmountTooLarge();         // SC-CRIT-002: Amount exceeds safe bounds
 
     // ============ Initialization ============
 
@@ -238,6 +241,11 @@ contract MeridianStablecoin is
     ) public initializer {
         // HIGH-003: Validate admin address to prevent permanently locked contract
         if (admin_ == address(0)) revert InvalidAdminAddress();
+
+        // CONTRACT-CRIT-001 FIX: Validate oracle is either zero (disabled) or a contract
+        if (complianceOracle_ != address(0) && complianceOracle_.code.length == 0) {
+            revert InvalidOracleAddress();
+        }
 
         __ERC20_init(name_, symbol_);
         __AccessControl_init();
@@ -304,10 +312,23 @@ contract MeridianStablecoin is
         if (request.nonce != nonces[request.recipient]++) revert InvalidNonce();
         if (isBlacklisted[request.recipient]) revert RecipientBlacklisted();
 
+        // SC-CRIT-002: Explicit bounds check before multiplication
+        // Max reserve value that won't overflow: type(uint256).max / RESERVE_TO_TOKEN_MULTIPLIER
+        // ~1.15e73 which is more than enough for any practical reserve value
+        // But we add explicit check for safety and clear error message
+        if (request.reserveValue > type(uint256).max / RESERVE_TO_TOKEN_MULTIPLIER) {
+            revert AmountTooLarge();
+        }
+
         // Verify reserve backing (must be at least 1:1)
         // Normalize: reserveValue (2 decimals) * 10^4 -> token decimals (6 decimals)
         uint256 normalizedReserveValue = request.reserveValue * RESERVE_TO_TOKEN_MULTIPLIER;
         if (normalizedReserveValue < request.amount) revert InsufficientReserveBacking();
+
+        // SC-CRIT-001: Explicit overflow check before reserve accumulation
+        if (totalReserveValue > type(uint256).max - request.reserveValue) {
+            revert ReserveOverflow();
+        }
 
         // Update reserve tracking
         totalReserveValue += request.reserveValue;
@@ -502,6 +523,10 @@ contract MeridianStablecoin is
      * @param newOracle Address of the new compliance oracle (or address(0) to disable)
      */
     function setComplianceOracle(address newOracle) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        // CONTRACT-CRIT-001 FIX: Validate oracle is either zero (disabled) or a contract
+        if (newOracle != address(0) && newOracle.code.length == 0) {
+            revert InvalidOracleAddress();
+        }
         address oldOracle = complianceOracle;
         complianceOracle = newOracle;
         // HIGH-001: Emit event for critical parameter update
