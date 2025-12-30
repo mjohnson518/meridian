@@ -57,16 +57,35 @@ describe('authClient', () => {
   });
 
   describe('saveSession', () => {
-    it('saves session to localStorage', () => {
+    it('saves session to localStorage without sensitive tokens', () => {
       authClient.saveSession(mockSession);
 
+      // SECURITY: Only user info and expiry stored, NOT access tokens
+      const expectedSafeSession = {
+        user: mockSession.user,
+        expiresAt: mockSession.expiresAt,
+      };
       expect(localStorageMock.setItem).toHaveBeenCalledWith(
         'meridian_session',
-        JSON.stringify(mockSession)
+        JSON.stringify(expectedSafeSession)
       );
+      // accessToken should NOT be stored (XSS prevention)
+      expect(localStorageMock.setItem).not.toHaveBeenCalledWith(
+        'meridian_ws_token',
+        expect.any(String)
+      );
+    });
+
+    it('stores wsToken if provided', () => {
+      const sessionWithWsToken = {
+        ...mockSession,
+        wsToken: 'ws-auth-token',
+      };
+      authClient.saveSession(sessionWithWsToken);
+
       expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'meridian_token',
-        mockSession.accessToken
+        'meridian_ws_token',
+        'ws-auth-token'
       );
     });
   });
@@ -214,26 +233,41 @@ describe('authClient', () => {
   });
 
   describe('logout', () => {
-    it('removes session and token from localStorage', () => {
+    it('removes session and ws token from localStorage', () => {
       authClient.logout();
 
       expect(localStorageMock.removeItem).toHaveBeenCalledWith('meridian_session');
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith('meridian_token');
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('meridian_ws_token');
     });
   });
 
   describe('createMockSession', () => {
-    it('creates a mock session with provided email', () => {
+    it('creates a mock session with provided email and unique tokens', () => {
       // Set NODE_ENV to development for this test
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'development';
 
-      const mockSession = authClient.createMockSession('test@example.com');
+      const session = authClient.createMockSession('test@example.com');
 
-      expect(mockSession.user.email).toBe('test@example.com');
-      expect(mockSession.user.role).toBe(UserRole.TREASURY);
-      expect(mockSession.accessToken).toBe('mock-jwt-token');
-      expect(mockSession.expiresAt).toBeGreaterThan(Date.now());
+      expect(session.user.email).toBe('test@example.com');
+      expect(session.user.role).toBe(UserRole.TREASURY);
+      // Tokens are now unique per session (security improvement)
+      expect(session.accessToken).toMatch(/^dev-only-token-/);
+      expect(session.refreshToken).toMatch(/^dev-only-refresh-/);
+      expect(session.expiresAt).toBeGreaterThan(Date.now());
+
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('generates unique tokens for each session', () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'development';
+
+      const session1 = authClient.createMockSession('user1@example.com');
+      const session2 = authClient.createMockSession('user2@example.com');
+
+      expect(session1.accessToken).not.toBe(session2.accessToken);
+      expect(session1.refreshToken).not.toBe(session2.refreshToken);
 
       process.env.NODE_ENV = originalEnv;
     });
@@ -242,9 +276,9 @@ describe('authClient', () => {
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'development';
 
-      const mockSession = authClient.createMockSession('test@example.com', UserRole.ADMIN);
+      const session = authClient.createMockSession('test@example.com', UserRole.ADMIN);
 
-      expect(mockSession.user.role).toBe(UserRole.ADMIN);
+      expect(session.user.role).toBe(UserRole.ADMIN);
 
       process.env.NODE_ENV = originalEnv;
     });

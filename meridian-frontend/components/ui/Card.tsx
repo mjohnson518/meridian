@@ -1,17 +1,17 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { motion, HTMLMotionProps } from 'framer-motion';
 import { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
-interface CardProps {
+interface CardProps extends Omit<HTMLMotionProps<'div'>, 'children'> {
   children: ReactNode;
   className?: string;
   hover?: boolean;
   padding?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
-export function Card({ children, className, hover = true, padding = 'lg' }: CardProps) {
+export function Card({ children, className, hover = true, padding = 'lg', ...props }: CardProps) {
   const paddingClasses = {
     sm: 'p-4 sm:p-5',
     md: 'p-6 sm:p-8',
@@ -29,6 +29,7 @@ export function Card({ children, className, hover = true, padding = 'lg' }: Card
       )}
       whileHover={hover ? { y: -2 } : undefined}
       transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+      {...props}
     >
       {children}
     </motion.div>
