@@ -11,7 +11,7 @@ use rust_decimal::Decimal;
 use sha2::{Sha256, Digest};
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 /// Get all current prices
 ///
@@ -183,6 +183,7 @@ struct AuthenticatedUser {
 
 /// Extract authenticated user ID from request token
 /// MED-002: Helper function for authentication checks
+#[allow(dead_code)]
 async fn get_authenticated_user_id(
     pool: &sqlx::PgPool,
     req: &HttpRequest,
@@ -193,6 +194,7 @@ async fn get_authenticated_user_id(
 
 /// Extract authenticated user with role from request token
 /// MED-003: Helper function for role-based access control
+/// CRIT-001 FIX: Added SESSION_TOKEN_SALT for consistent token hashing
 async fn get_authenticated_user_with_role(
     pool: &sqlx::PgPool,
     req: &HttpRequest,
@@ -204,8 +206,27 @@ async fn get_authenticated_user_with_role(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
 
+    // CRIT-001 FIX: Use salted token hashing consistent with auth.rs
+    static TOKEN_SALT: OnceLock<String> = OnceLock::new();
+
+    let salt = TOKEN_SALT.get_or_init(|| {
+        std::env::var("SESSION_TOKEN_SALT").unwrap_or_else(|_| {
+            // In development, use a default salt with warning
+            if std::env::var("ENVIRONMENT")
+                .map(|e| e.to_lowercase() == "production")
+                .unwrap_or(false)
+            {
+                // Production MUST have salt configured - panic to prevent insecure operation
+                panic!("SESSION_TOKEN_SALT must be set in production environment");
+            }
+            tracing::warn!("Using default session token salt - set SESSION_TOKEN_SALT in production");
+            "dev-session-salt-not-for-production".to_string()
+        })
+    });
+
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
+    hasher.update(salt.as_bytes());
     let token_hash = hex::encode(hasher.finalize());
 
     let session = sqlx::query!(
