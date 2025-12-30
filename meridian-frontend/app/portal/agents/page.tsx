@@ -180,14 +180,34 @@ function AgentConsole() {
 
       if (response.ok) {
         const data = await response.json();
+        // SECURITY: Mask API key to prevent XSS capture
+        // Only show first 8 and last 4 characters
+        const maskedKey = data.api_key
+          ? `${data.api_key.slice(0, 8)}${'*'.repeat(16)}${data.api_key.slice(-4)}`
+          : 'ERROR: No key returned';
+
         addLog(`✓ Agent created successfully`);
         addLog(`  Agent ID: ${data.agent_id}`);
-        addLog(`  API Key: ${data.api_key}`);
+        addLog(`  API Key: ${maskedKey}`);
         addLog(`  Wallet: ${data.wallet_address}`);
         addLog(`  Daily Limit: $${dailyLimit}`);
         addLog(`  TX Limit: $${txLimit}`);
         addLog('');
-        addLog('⚠️  Save the API key securely - it will not be shown again!');
+        addLog('⚠️  Copy full API key from response - masked in terminal for security!');
+
+        // Copy full key to clipboard securely (one-time, auto-clears)
+        if (data.api_key && navigator.clipboard) {
+          navigator.clipboard.writeText(data.api_key).then(() => {
+            addLog('📋 API key copied to clipboard (auto-clears in 30s)');
+            // Auto-clear clipboard after 30 seconds for security
+            setTimeout(() => {
+              navigator.clipboard.writeText('').catch(() => {});
+            }, 30000);
+          }).catch(() => {
+            addLog('⚠️  Could not copy to clipboard - save key manually');
+          });
+        }
+
         await loadAgents();
       } else {
         const error = await response.text();
