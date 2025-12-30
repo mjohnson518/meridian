@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
+use tokio::time::timeout;
 
 /// Configuration for a price feed
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,6 +59,9 @@ abigen!(
     ]"#
 );
 
+/// Default timeout for RPC calls (30 seconds)
+const RPC_TIMEOUT_SECS: u64 = 30;
+
 /// Chainlink oracle client for querying FX price feeds
 ///
 /// Connects to Ethereum mainnet and queries Chainlink price feed aggregators
@@ -98,11 +103,14 @@ impl ChainlinkOracle {
         let provider = Provider::<Http>::try_from(rpc_url)
             .map_err(|e| OracleError::ProviderError(e.to_string()))?;
 
-        // Verify connection by getting chain ID
-        let chain_id = provider
-            .get_chainid()
-            .await
-            .map_err(|e| OracleError::ProviderError(format!("Failed to connect: {}", e)))?;
+        // Verify connection by getting chain ID (with timeout)
+        let chain_id = timeout(
+            Duration::from_secs(RPC_TIMEOUT_SECS),
+            provider.get_chainid(),
+        )
+        .await
+        .map_err(|_| OracleError::ProviderError("RPC connection timeout".to_string()))?
+        .map_err(|e| OracleError::ProviderError(format!("Failed to connect: {}", e)))?;
 
         tracing::info!(
             chain_id = %chain_id,
@@ -158,16 +166,22 @@ impl ChainlinkOracle {
         // Create contract instance
         let aggregator = ChainlinkAggregatorV3::new(address, Arc::clone(&self.provider));
 
-        // Query contract metadata
-        let decimals =
-            aggregator.decimals().call().await.map_err(|e| {
-                OracleError::ContractError(format!("Failed to get decimals: {}", e))
-            })?;
+        // Query contract metadata (with timeout)
+        let decimals = timeout(
+            Duration::from_secs(RPC_TIMEOUT_SECS),
+            aggregator.decimals().call(),
+        )
+        .await
+        .map_err(|_| OracleError::ContractError("RPC timeout getting decimals".to_string()))?
+        .map_err(|e| OracleError::ContractError(format!("Failed to get decimals: {}", e)))?;
 
-        let description =
-            aggregator.description().call().await.map_err(|e| {
-                OracleError::ContractError(format!("Failed to get description: {}", e))
-            })?;
+        let description = timeout(
+            Duration::from_secs(RPC_TIMEOUT_SECS),
+            aggregator.description().call(),
+        )
+        .await
+        .map_err(|_| OracleError::ContractError("RPC timeout getting description".to_string()))?
+        .map_err(|e| OracleError::ContractError(format!("Failed to get description: {}", e)))?;
 
         tracing::info!(
             pair = %pair,
@@ -276,11 +290,16 @@ impl ChainlinkOracle {
         // Create contract instance
         let aggregator = ChainlinkAggregatorV3::new(address, Arc::clone(&self.provider));
 
-        // Query latest round data
-        let (round_id, answer, _started_at, updated_at, _answered_in_round) =
-            aggregator.latest_round_data().call().await.map_err(|e| {
-                OracleError::ContractError(format!("Failed to get latest round data: {}", e))
-            })?;
+        // Query latest round data (with timeout)
+        let (round_id, answer, _started_at, updated_at, _answered_in_round) = timeout(
+            Duration::from_secs(RPC_TIMEOUT_SECS),
+            aggregator.latest_round_data().call(),
+        )
+        .await
+        .map_err(|_| OracleError::ContractError("RPC timeout getting latest round data".to_string()))?
+        .map_err(|e| {
+            OracleError::ContractError(format!("Failed to get latest round data: {}", e))
+        })?;
 
         tracing::debug!(
             pair = %pair,
