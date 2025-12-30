@@ -10,30 +10,36 @@ use sha2::{Sha256, Digest};
 use std::str::FromStr;
 use std::sync::Arc;
 
+/// Bond holding with financial values as strings to avoid floating-point precision issues
+/// SECURITY: Per CLAUDE.md - NO floating-point for money
 #[derive(Debug, Serialize)]
 pub struct BondHolding {
     pub isin: String,
     pub name: String,
     pub maturity: String,
-    pub quantity: f64,
-    pub price: f64,
-    pub value: f64,
-    pub r#yield: f64, // 'yield' is a keyword in Rust
+    pub quantity: String,   // Changed from f64 to String for precision
+    pub price: String,      // Changed from f64 to String for precision
+    pub value: String,      // Changed from f64 to String for precision
+    pub r#yield: String,    // Changed from f64 to String for precision
     pub rating: String,
 }
 
+/// Currency breakdown with financial values as strings
+/// SECURITY: Per CLAUDE.md - NO floating-point for money
 #[derive(Debug, Serialize)]
 pub struct CurrencyBreakdown {
     pub currency: String,
-    pub value: f64,
-    pub percentage: f64,
+    pub value: String,      // Changed from f64 to String for precision
+    pub percentage: String, // Changed from f64 to String for precision
 }
 
+/// History point with financial values as strings
+/// SECURITY: Per CLAUDE.md - NO floating-point for money
 #[derive(Debug, Serialize)]
 pub struct HistoryPoint {
     pub timestamp: i64,
-    pub ratio: f64,
-    pub total_value: f64,
+    pub ratio: String,      // Changed from f64 to String for precision
+    pub total_value: String,// Changed from f64 to String for precision
 }
 
 #[derive(Debug, Serialize)]
@@ -53,6 +59,7 @@ pub struct ReserveData {
 
 /// Database row for stablecoin reserves query
 #[derive(Debug, sqlx::FromRow)]
+#[allow(dead_code)]
 struct StablecoinReserves {
     symbol: String,
     total_supply: String,
@@ -121,8 +128,8 @@ pub async fn get_reserves(
                 currencies: vec![
                     CurrencyBreakdown {
                         currency: currency_code.clone(),
-                        value: display_reserve_value,
-                        percentage: 100.0,
+                        value: format!("{:.2}", reserve_value),
+                        percentage: "100.00".to_string(),
                     }
                 ],
                 demo_mode: false, // This is REAL data
@@ -149,25 +156,27 @@ pub async fn get_reserves(
                         isin: "DE0001102440".to_string(),
                         name: "German Bund 2.50% Oct 2027".to_string(),
                         maturity: "2027-10-15".to_string(),
-                        quantity: 10050.0,
-                        price: 99.50,
-                        value: 10004750.00,
-                        r#yield: 2.65,
+                        quantity: "10050.00".to_string(),
+                        price: "99.50".to_string(),
+                        value: "10004750.00".to_string(),
+                        r#yield: "2.65".to_string(),
                         rating: "AAA".to_string(),
                     }
                 ],
                 history: (0..30).map(|i| {
+                    let ratio_val = 100.0 + (i as f64 / 10.0).sin();
+                    let value_val = 10000000.0 + (i as f64 * 1000.0);
                     HistoryPoint {
                         timestamp: (Utc::now() - Duration::days(29 - i)).timestamp() * 1000,
-                        ratio: 100.0 + (i as f64 / 10.0).sin(),
-                        total_value: 10000000.0 + (i as f64 * 1000.0),
+                        ratio: format!("{:.2}", ratio_val),
+                        total_value: format!("{:.2}", value_val),
                     }
                 }).collect(),
                 currencies: vec![
                     CurrencyBreakdown {
                         currency: currency_code.clone(),
-                        value: 10042250.00,
-                        percentage: 100.0,
+                        value: "10042250.00".to_string(),
+                        percentage: "100.00".to_string(),
                     }
                 ],
                 demo_mode: true, // IMPORTANT: This is simulated data
@@ -203,14 +212,18 @@ async fn fetch_real_reserves(
 }
 
 /// Generate placeholder history data (for when we have real current data but no history)
+/// SECURITY: Per CLAUDE.md - Uses f64 only for display formatting, not financial calculations
 fn generate_history_placeholder(current_value: f64, current_ratio: f64) -> Vec<HistoryPoint> {
     // Generate 30 days of history with minor variations around current values
+    // Note: These are display-only placeholder values, not used for financial calculations
     (0..30).map(|i| {
         let variance = (i as f64 / 100.0).sin() * 0.5;
+        let ratio_val = current_ratio + variance;
+        let value_val = current_value * (1.0 + variance / 100.0);
         HistoryPoint {
             timestamp: (Utc::now() - Duration::days(29 - i)).timestamp() * 1000,
-            ratio: current_ratio + variance,
-            total_value: current_value * (1.0 + variance / 100.0),
+            ratio: format!("{:.2}", ratio_val),
+            total_value: format!("{:.2}", value_val),
         }
     }).collect()
 }
