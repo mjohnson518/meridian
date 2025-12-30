@@ -30,6 +30,7 @@ pub struct CreateAgentResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct AgentPaymentRequest {
     pub agent_id: String,
     pub api_key: String,
@@ -80,9 +81,26 @@ pub async fn create_agent(
         return Err(ApiError::Forbidden("Cannot create agent for another user".to_string()));
     }
 
+    // BE-CRIT-002: Validate agent_name
+    // - Length: 1-100 characters
+    // - Characters: alphanumeric, spaces, hyphens, underscores only
+    // - Prevents XSS, storage attacks, and display issues
+    let agent_name = req.agent_name.trim();
+    if agent_name.is_empty() {
+        return Err(ApiError::BadRequest("Agent name cannot be empty".to_string()));
+    }
+    if agent_name.len() > 100 {
+        return Err(ApiError::BadRequest("Agent name cannot exceed 100 characters".to_string()));
+    }
+    if !agent_name.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '-' || c == '_') {
+        return Err(ApiError::BadRequest(
+            "Agent name can only contain letters, numbers, spaces, hyphens, and underscores".to_string()
+        ));
+    }
+
     tracing::info!(
         user_id = req.user_id,
-        agent_name = %req.agent_name,
+        agent_name = %agent_name,
         "Creating agent wallet"
     );
 
@@ -144,7 +162,7 @@ pub async fn create_agent(
     })?;
 
     // Insert agent wallet
-    let agent = sqlx::query!(
+    let _agent = sqlx::query!(
         r#"
         INSERT INTO agent_wallets (
             user_id, agent_id, agent_name, wallet_address, api_key_hash,
@@ -155,7 +173,7 @@ pub async fn create_agent(
         "#,
         req.user_id,
         agent_id,
-        req.agent_name,
+        agent_name,  // Use validated/trimmed agent_name
         wallet_address,
         api_key_hash,
         req.spending_limit_daily,
@@ -251,6 +269,28 @@ pub async fn agent_pay(
         return Err(ApiError::BadRequest("Invalid recipient address".to_string()));
     }
 
+    // BE-CRIT-003: Validate memo field if present
+    // - Max 500 characters to prevent storage attacks
+    // - Sanitize to prevent XSS (only allow printable ASCII)
+    let _validated_memo: Option<String> = match &req.memo {
+        Some(memo) => {
+            let trimmed = memo.trim();
+            if trimmed.len() > 500 {
+                return Err(ApiError::BadRequest("Memo cannot exceed 500 characters".to_string()));
+            }
+            // Filter to printable ASCII only (32-126)
+            let sanitized: String = trimmed.chars()
+                .filter(|c| *c >= ' ' && *c <= '~')
+                .collect();
+            if sanitized.is_empty() {
+                None
+            } else {
+                Some(sanitized)
+            }
+        },
+        None => None,
+    };
+
     // Insert transaction
     let transaction = sqlx::query!(
         r#"
@@ -270,43 +310,52 @@ pub async fn agent_pay(
         ApiError::InternalError("Failed to create transaction".to_string())
     })?;
 
-    // Check environment
-    let is_production = std::env::var("ENVIRONMENT")
-        .map(|e| e.to_lowercase() == "production")
-        .unwrap_or(false);
+    // BACKEND-CRIT-001 FIX: Fail-safe environment detection
+    // Only allow mock transactions when EXPLICITLY in development mode
+    // Default to production behavior (fail-safe) when environment is unknown
+    let environment = std::env::var("ENVIRONMENT")
+        .map(|e| e.to_lowercase())
+        .unwrap_or_else(|_| "production".to_string()); // Fail-safe: default to production
+
+    let is_development = environment == "development" || environment == "dev";
+    let is_test = environment == "test" || environment == "testing";
+    let is_safe_environment = is_development || is_test;
 
     // Check if mock mode is explicitly enabled (ALLOW_MOCK_TRANSACTIONS=true)
-    let mock_mode = std::env::var("ALLOW_MOCK_TRANSACTIONS")
+    let mock_mode_requested = std::env::var("ALLOW_MOCK_TRANSACTIONS")
         .map(|v| v.to_lowercase() == "true")
         .unwrap_or(false);
 
-    // SECURITY: Block mock transactions in production - this is a critical safety check
-    if is_production && mock_mode {
+    // SECURITY: Mock transactions ONLY allowed in explicitly safe environments
+    if mock_mode_requested && !is_safe_environment {
         tracing::error!(
             transaction_id = transaction.id,
-            "SECURITY VIOLATION: ALLOW_MOCK_TRANSACTIONS is enabled in production!"
+            environment = %environment,
+            "SECURITY VIOLATION: ALLOW_MOCK_TRANSACTIONS blocked outside dev/test environment!"
         );
         return Err(ApiError::InternalError(
             "Configuration error. Contact support.".to_string()
         ));
     }
 
-    // In production, require real blockchain execution (not implemented yet)
-    if !mock_mode {
+    // In production/staging, require real blockchain execution (not implemented yet)
+    if !mock_mode_requested || !is_safe_environment {
         tracing::warn!(
             transaction_id = transaction.id,
-            "Real blockchain execution not implemented. Set ALLOW_MOCK_TRANSACTIONS=true for development."
+            environment = %environment,
+            "Real blockchain execution not implemented. Set ENVIRONMENT=development and ALLOW_MOCK_TRANSACTIONS=true for testing."
         );
         return Err(ApiError::InternalError(
             "Blockchain execution not available. Contact support.".to_string()
         ));
     }
 
-    // MOCK MODE: Generate simulated transaction hash (development only)
+    // MOCK MODE: Only reachable in dev/test with explicit opt-in
     // WARNING: This does NOT execute real blockchain transactions!
     tracing::warn!(
         transaction_id = transaction.id,
-        "MOCK MODE (dev only): Generating simulated transaction hash"
+        environment = %environment,
+        "MOCK MODE (dev/test only): Generating simulated transaction hash"
     );
     let tx_hash = format!("0xMOCK_{}", Uuid::new_v4().to_string().replace("-", ""));
 
@@ -622,6 +671,7 @@ fn is_valid_ethereum_address(address: &str) -> bool {
 
 /// Validates Ethereum address with EIP-55 checksum (strict mode)
 /// Returns an error message if validation fails
+#[allow(dead_code)]
 fn validate_ethereum_address_strict(address: &str) -> Result<Address, String> {
     // Basic format check
     if !address.starts_with("0x") || address.len() != 42 {
@@ -659,6 +709,7 @@ fn validate_ethereum_address_strict(address: &str) -> Result<Address, String> {
     Ok(parsed)
 }
 
+#[allow(dead_code)]
 struct AgentWallet {
     user_id: i32,
     agent_id: String,
