@@ -456,9 +456,8 @@ async fn get_authenticated_user_id(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
 
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    let token_hash = hex::encode(hasher.finalize());
+    // BE-MED-001 FIX: Use salted hash matching auth.rs to find session
+    let token_hash = hash_token_for_lookup(token);
 
     let session = sqlx::query!(
         r#"
@@ -475,6 +474,228 @@ async fn get_authenticated_user_id(
     match session {
         Some(s) => Ok(s.user_id),
         None => Err(ApiError::Unauthorized("Invalid or expired token".to_string())),
+    }
+}
+
+/// Hash token for database lookup - must match auth.rs hash_token
+/// BE-MED-001: Added salted hashing to match session storage
+fn hash_token_for_lookup(token: &str) -> String {
+    use std::sync::OnceLock;
+
+    static TOKEN_SALT: OnceLock<String> = OnceLock::new();
+
+    let salt = TOKEN_SALT.get_or_init(|| {
+        std::env::var("SESSION_TOKEN_SALT").unwrap_or_else(|_| {
+            "dev-session-salt-not-for-production".to_string()
+        })
+    });
+
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    hasher.update(salt.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================
+    // validate_amount tests
+    // ========================
+
+    #[test]
+    fn test_validate_amount_zero() {
+        let amount = Decimal::ZERO;
+        let result = validate_amount(&amount, "test");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("greater than zero"));
+    }
+
+    #[test]
+    fn test_validate_amount_negative() {
+        let amount = Decimal::from_str("-100").unwrap();
+        let result = validate_amount(&amount, "test");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("greater than zero"));
+    }
+
+    #[test]
+    fn test_validate_amount_valid() {
+        let amount = Decimal::from_str("100.50").unwrap();
+        let result = validate_amount(&amount, "test");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_amount_maximum_boundary() {
+        // Just at the limit - should pass
+        let amount = Decimal::from_str(MAX_TRANSACTION_AMOUNT).unwrap();
+        let result = validate_amount(&amount, "test");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_amount_exceeds_maximum() {
+        // One more than max - should fail
+        let amount = Decimal::from_str("10000000001").unwrap();
+        let result = validate_amount(&amount, "test");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("exceeds maximum"));
+    }
+
+    #[test]
+    fn test_validate_amount_small_positive() {
+        let amount = Decimal::from_str("0.000001").unwrap();
+        let result = validate_amount(&amount, "test");
+        assert!(result.is_ok());
+    }
+
+    // ========================
+    // validate_fx_rate tests
+    // ========================
+
+    #[test]
+    fn test_validate_fx_rate_zero() {
+        let rate = Decimal::ZERO;
+        let result = validate_fx_rate(&rate, "EUR");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Invalid FX rate"));
+    }
+
+    #[test]
+    fn test_validate_fx_rate_negative() {
+        let rate = Decimal::from_str("-1.05").unwrap();
+        let result = validate_fx_rate(&rate, "EUR");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_fx_rate_below_minimum() {
+        let rate = Decimal::from_str("0.00000001").unwrap();
+        let result = validate_fx_rate(&rate, "JPY");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("below minimum"));
+    }
+
+    #[test]
+    fn test_validate_fx_rate_at_minimum() {
+        let rate = Decimal::from_str(MIN_FX_RATE).unwrap();
+        let result = validate_fx_rate(&rate, "EUR");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_fx_rate_valid_eur() {
+        let rate = Decimal::from_str("1.04").unwrap();
+        let result = validate_fx_rate(&rate, "EUR");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_fx_rate_valid_jpy() {
+        let rate = Decimal::from_str("0.0063").unwrap();
+        let result = validate_fx_rate(&rate, "JPY");
+        assert!(result.is_ok());
+    }
+
+    // ========================
+    // validate_currency tests
+    // ========================
+
+    #[test]
+    fn test_validate_currency_eur() {
+        assert!(validate_currency("EUR").is_ok());
+    }
+
+    #[test]
+    fn test_validate_currency_gbp() {
+        assert!(validate_currency("GBP").is_ok());
+    }
+
+    #[test]
+    fn test_validate_currency_jpy() {
+        assert!(validate_currency("JPY").is_ok());
+    }
+
+    #[test]
+    fn test_validate_currency_mxn() {
+        assert!(validate_currency("MXN").is_ok());
+    }
+
+    #[test]
+    fn test_validate_currency_brl() {
+        assert!(validate_currency("BRL").is_ok());
+    }
+
+    #[test]
+    fn test_validate_currency_ars() {
+        assert!(validate_currency("ARS").is_ok());
+    }
+
+    #[test]
+    fn test_validate_currency_lowercase() {
+        // Should work with lowercase
+        assert!(validate_currency("eur").is_ok());
+        assert!(validate_currency("gbp").is_ok());
+    }
+
+    #[test]
+    fn test_validate_currency_unsupported_usd() {
+        let result = validate_currency("USD");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Unsupported currency"));
+    }
+
+    #[test]
+    fn test_validate_currency_unsupported_random() {
+        let result = validate_currency("XYZ");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_currency_empty() {
+        let result = validate_currency("");
+        assert!(result.is_err());
+    }
+
+    // ========================
+    // Fee calculation tests
+    // ========================
+
+    #[test]
+    fn test_fee_constants() {
+        // Verify fee constants are reasonable (25 basis points = 0.25%)
+        assert_eq!(FEE_ISSUANCE_BPS, 25);
+        assert_eq!(FEE_REDEMPTION_BPS, 25);
+        assert_eq!(RESERVE_BUFFER_PERCENT, 2);
+    }
+
+    // ========================
+    // hash_token_for_lookup tests
+    // ========================
+
+    #[test]
+    fn test_hash_token_for_lookup_consistent() {
+        let token = "test-token-12345";
+        let hash1 = hash_token_for_lookup(token);
+        let hash2 = hash_token_for_lookup(token);
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_hash_token_for_lookup_different_tokens() {
+        let hash1 = hash_token_for_lookup("token1");
+        let hash2 = hash_token_for_lookup("token2");
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_hash_token_for_lookup_hex_format() {
+        let hash = hash_token_for_lookup("test");
+        // SHA-256 produces 64 hex characters
+        assert_eq!(hash.len(), 64);
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
     }
 }
 
