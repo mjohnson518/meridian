@@ -111,17 +111,17 @@ export default function LoginPage() {
           </div>
         </SacredCard>
 
-        {/* Development banner - only shown in non-production environments */}
-        {process.env.NODE_ENV !== 'production' && (
-          <div className="mt-6 p-4 bg-sacred-white rounded">
-            <p className="text-xs font-mono text-sacred-gray-600 mb-2">
-              <strong>Development Mode</strong>
+        {/* Development info - only shown in non-production with localhost */}
+        {process.env.NODE_ENV !== 'production' && typeof window !== 'undefined' && window.location.hostname === 'localhost' && (
+          <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded">
+            <p className="text-xs font-mono text-amber-800 mb-2">
+              <strong>⚠️ Development Environment</strong>
             </p>
-            <p className="text-xs text-sacred-gray-600 mb-2">
-              Use any email/password to log in. Mock authentication is active.
+            <p className="text-xs text-amber-700 mb-2">
+              Real backend authentication is active. Register a user or use configured test credentials.
             </p>
-            <p className="text-xs text-sacred-gray-500">
-              Backend auth endpoint: <code className="font-mono">{process.env.NEXT_PUBLIC_API_URL}/auth/login</code>
+            <p className="text-xs text-amber-600">
+              Backend: <code className="font-mono">{process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'}</code>
             </p>
           </div>
         )}
