@@ -106,11 +106,9 @@ async fn main() -> std::io::Result<()> {
 
     // Configure rate limiting: ~100 requests per minute per IP
     // per_second(2) = 2 tokens/sec = 120/min, burst_size(10) = max burst
-    // HIGH-010: Enable rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
     let governor_config = GovernorConfigBuilder::default()
         .per_second(2)
         .burst_size(10)
-        .use_headers() // Enable X-RateLimit-* headers in responses
         .finish()
         .expect("Failed to build rate limiter config");
 
