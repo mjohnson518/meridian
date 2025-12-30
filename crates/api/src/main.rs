@@ -4,6 +4,7 @@
 
 mod error;
 mod handlers;
+mod middleware;
 mod models;
 mod routes;
 mod state;
@@ -11,6 +12,7 @@ mod state;
 use actix_cors::Cors;
 use actix_governor::{Governor, GovernorConfigBuilder};
 use actix_web::{middleware::{DefaultHeaders, Logger}, web, App, HttpServer};
+use middleware::CorrelationIdMiddleware;
 use meridian_db::{create_pool, run_migrations};
 use state::AppState;
 use std::sync::Arc;
@@ -106,6 +108,11 @@ async fn main() -> std::io::Result<()> {
                 actix_web::http::header::AUTHORIZATION,
                 actix_web::http::header::CONTENT_TYPE,
                 actix_web::http::header::ACCEPT,
+                "X-Correlation-ID".parse().unwrap(),
+                "X-Request-ID".parse().unwrap(),
+            ])
+            .expose_headers(vec![
+                actix_web::http::header::HeaderName::from_static("x-correlation-id"),
             ])
             .max_age(3600);
 
@@ -143,6 +150,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(app_state.clone()))
             .app_data(json_cfg)
             .wrap(security_headers)
+            .wrap(CorrelationIdMiddleware::new())
             .wrap(Governor::new(&governor_config))
             .wrap(Logger::default())
             .wrap(cors)
