@@ -504,4 +504,166 @@ mod tests {
         assert_eq!(testnet_chains.len(), 7);
         assert!(testnet_chains.iter().all(|c| c.is_testnet()));
     }
+
+    // ============ Additional tests for comprehensive coverage ============
+
+    #[test]
+    fn test_all_chain_configs_have_native_tokens() {
+        let all_chains = [
+            Chain::Ethereum,
+            Chain::EthereumSepolia,
+            Chain::Base,
+            Chain::BaseSepolia,
+            Chain::Arbitrum,
+            Chain::ArbitrumSepolia,
+            Chain::Optimism,
+            Chain::OptimismSepolia,
+            Chain::Arc,
+            Chain::ArcTestnet,
+            Chain::Tempo,
+            Chain::TempoTestnet,
+            Chain::Solana,
+            Chain::SolanaDevnet,
+        ];
+
+        for chain in all_chains {
+            let config = chain.config();
+            assert!(!config.native_token.is_empty(), "{:?} has no native token", chain);
+        }
+    }
+
+    #[test]
+    fn test_all_chains_have_explorer_urls() {
+        let all_chains = [
+            Chain::Ethereum,
+            Chain::EthereumSepolia,
+            Chain::Base,
+            Chain::BaseSepolia,
+            Chain::Arbitrum,
+            Chain::ArbitrumSepolia,
+            Chain::Optimism,
+            Chain::OptimismSepolia,
+            Chain::Arc,
+            Chain::ArcTestnet,
+            Chain::Tempo,
+            Chain::TempoTestnet,
+            Chain::Solana,
+            Chain::SolanaDevnet,
+        ];
+
+        for chain in all_chains {
+            let config = chain.config();
+            assert!(config.explorer_url.starts_with("https://"), "{:?} has invalid explorer URL", chain);
+        }
+    }
+
+    #[test]
+    fn test_chain_from_string_aliases() {
+        // Test short aliases
+        assert_eq!(Chain::from_str("eth").unwrap(), Chain::Ethereum);
+        assert_eq!(Chain::from_str("arb").unwrap(), Chain::Arbitrum);
+        assert_eq!(Chain::from_str("op").unwrap(), Chain::Optimism);
+        assert_eq!(Chain::from_str("sol").unwrap(), Chain::Solana);
+        assert_eq!(Chain::from_str("devnet").unwrap(), Chain::SolanaDevnet);
+    }
+
+    #[test]
+    fn test_chain_from_string_case_insensitive() {
+        assert_eq!(Chain::from_str("ETHEREUM").unwrap(), Chain::Ethereum);
+        assert_eq!(Chain::from_str("Ethereum").unwrap(), Chain::Ethereum);
+        assert_eq!(Chain::from_str("BASE").unwrap(), Chain::Base);
+        assert_eq!(Chain::from_str("Solana").unwrap(), Chain::Solana);
+    }
+
+    #[test]
+    fn test_chain_error_types() {
+        let err = Chain::from_str("invalid_chain").unwrap_err();
+        match err {
+            ChainError::UnsupportedChain(_) => (),
+            _ => panic!("Expected UnsupportedChain error"),
+        }
+        assert!(err.to_string().contains("Unknown chain"));
+    }
+
+    #[test]
+    fn test_mainnet_and_testnet_are_mutually_exclusive() {
+        let all_chains = [
+            Chain::Ethereum,
+            Chain::EthereumSepolia,
+            Chain::Base,
+            Chain::BaseSepolia,
+            Chain::Arbitrum,
+            Chain::ArbitrumSepolia,
+            Chain::Optimism,
+            Chain::OptimismSepolia,
+            Chain::Arc,
+            Chain::ArcTestnet,
+            Chain::Tempo,
+            Chain::TempoTestnet,
+            Chain::Solana,
+            Chain::SolanaDevnet,
+        ];
+
+        for chain in all_chains {
+            assert_ne!(
+                chain.is_mainnet(),
+                chain.is_testnet(),
+                "{:?} should be either mainnet or testnet, not both or neither",
+                chain
+            );
+        }
+    }
+
+    #[test]
+    fn test_l2_chain_ids() {
+        // L2 chains should have expected chain IDs
+        assert_eq!(Chain::BaseSepolia.config().chain_id, 84532);
+        assert_eq!(Chain::ArbitrumSepolia.config().chain_id, 421614);
+        assert_eq!(Chain::OptimismSepolia.config().chain_id, 11155420);
+    }
+
+    #[test]
+    fn test_solana_has_program_id_not_contract_address() {
+        let solana_config = Chain::Solana.config();
+        assert!(solana_config.program_id.is_some(), "Solana should have program_id");
+        assert!(solana_config.contract_address.is_none(), "Solana should not have contract_address");
+
+        let devnet_config = Chain::SolanaDevnet.config();
+        assert!(devnet_config.program_id.is_some(), "Solana Devnet should have program_id");
+        assert!(devnet_config.contract_address.is_none(), "Solana Devnet should not have contract_address");
+    }
+
+    #[test]
+    fn test_all_chain_names_unique() {
+        let all_chains = list_evm_chains().into_iter()
+            .chain(list_solana_chains().into_iter())
+            .collect::<Vec<_>>();
+
+        let names: Vec<_> = all_chains.iter().map(|c| c.name()).collect();
+        let unique_names: std::collections::HashSet<_> = names.iter().collect();
+
+        assert_eq!(names.len(), unique_names.len(), "All chain names should be unique");
+    }
+
+    #[test]
+    fn test_chain_config_helper_function() {
+        let config_method = Chain::Base.config();
+        let config_fn = get_chain_config(Chain::Base);
+
+        assert_eq!(config_method.chain_id, config_fn.chain_id);
+        assert_eq!(config_method.native_token, config_fn.native_token);
+        assert_eq!(config_method.explorer_url, config_fn.explorer_url);
+    }
+
+    #[test]
+    fn test_is_evm_chain_helper_function() {
+        assert_eq!(is_evm_chain(Chain::Ethereum), Chain::Ethereum.is_evm_chain());
+        assert_eq!(is_evm_chain(Chain::Solana), Chain::Solana.is_evm_chain());
+    }
+
+    #[test]
+    fn test_is_solana_chain_helper_function() {
+        assert_eq!(is_solana_chain(Chain::Solana), Chain::Solana.is_solana_chain());
+        assert_eq!(is_solana_chain(Chain::Ethereum), Chain::Ethereum.is_solana_chain());
+    }
 }
