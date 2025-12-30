@@ -6,18 +6,31 @@ import "../src/MeridianStablecoin.sol";
 import "../src/MeridianFactory.sol";
 
 /**
+ * @title MockComplianceOracleFactory
+ * @notice Mock compliance oracle for factory testing (CONTRACT-CRIT-001 test fix)
+ */
+contract MockComplianceOracleFactory {
+    function isTransferAllowed(address, address, uint256) external pure returns (bool) {
+        return true;
+    }
+}
+
+/**
  * @title MeridianFactoryTest
  * @notice Test suite for MeridianFactory
  */
 contract MeridianFactoryTest is Test {
     MeridianStablecoin public implementation;
     MeridianFactory public factory;
+    MockComplianceOracleFactory public mockOracle;
 
     address public owner = address(0x1);
     address public admin = address(0x2);
-    address public complianceOracle = address(0x3);
 
     function setUp() public {
+        // Deploy mock oracle (CONTRACT-CRIT-001: Must be a contract, not EOA)
+        mockOracle = new MockComplianceOracleFactory();
+
         // Deploy implementation
         implementation = new MeridianStablecoin();
 
@@ -50,7 +63,7 @@ contract MeridianFactoryTest is Test {
             "EUR_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)  // CONTRACT-CRIT-001: Use deployed contract
         );
 
         assertTrue(stablecoin != address(0));
@@ -65,7 +78,7 @@ contract MeridianFactoryTest is Test {
             "EUR_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         MeridianStablecoin stablecoin = MeridianStablecoin(stablecoinAddr);
@@ -90,7 +103,7 @@ contract MeridianFactoryTest is Test {
             "EUR_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         address gbpStablecoin = factory.deployStablecoin(
@@ -99,7 +112,7 @@ contract MeridianFactoryTest is Test {
             "GBP_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         vm.stopPrank();
@@ -117,7 +130,7 @@ contract MeridianFactoryTest is Test {
             "EUR_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         // Try to deploy with same basket ID
@@ -128,7 +141,7 @@ contract MeridianFactoryTest is Test {
             "EUR_BASKET", // Same basket ID
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         vm.stopPrank();
@@ -143,7 +156,7 @@ contract MeridianFactoryTest is Test {
             "EUR_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
     }
 
@@ -158,7 +171,7 @@ contract MeridianFactoryTest is Test {
             "EUR_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         address gbpStablecoin = factory.deployStablecoin(
@@ -167,7 +180,7 @@ contract MeridianFactoryTest is Test {
             "GBP_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         vm.stopPrank();
@@ -186,7 +199,7 @@ contract MeridianFactoryTest is Test {
             "EUR_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         MeridianFactory.StablecoinInfo memory info = factory.getStablecoinInfo(stablecoinAddr);
@@ -207,7 +220,7 @@ contract MeridianFactoryTest is Test {
             "EUR_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         address foundStablecoin = factory.getStablecoinByBasketId("EUR_BASKET");
@@ -224,7 +237,7 @@ contract MeridianFactoryTest is Test {
             "EUR_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         assertTrue(factory.basketIdExists("EUR_BASKET"));
@@ -276,7 +289,7 @@ contract MeridianFactoryTest is Test {
             "EUR_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         MeridianStablecoin stablecoin = MeridianStablecoin(stablecoinAddr);
@@ -314,7 +327,7 @@ contract MeridianFactoryTest is Test {
             "EUR_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         // IMF SDR
@@ -324,7 +337,7 @@ contract MeridianFactoryTest is Test {
             "SDR_BASKET",
             MeridianStablecoin.BasketType.ImfSdr,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         // Custom basket
@@ -334,7 +347,7 @@ contract MeridianFactoryTest is Test {
             "CUSTOM_BASKET",
             MeridianStablecoin.BasketType.CustomBasket,
             admin,
-            complianceOracle
+            address(mockOracle)
         );
 
         vm.stopPrank();

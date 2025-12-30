@@ -6,6 +6,22 @@ import "../src/MeridianStablecoin.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /**
+ * @title MockComplianceOracle
+ * @notice Mock compliance oracle for testing (CONTRACT-CRIT-001 test fix)
+ */
+contract MockComplianceOracle {
+    bool public allowAll = true;
+
+    function setAllowAll(bool _allow) external {
+        allowAll = _allow;
+    }
+
+    function isTransferAllowed(address, address, uint256) external view returns (bool) {
+        return allowAll;
+    }
+}
+
+/**
  * @title MeridianStablecoinTest
  * @notice Comprehensive test suite for MeridianStablecoin
  */
@@ -18,13 +34,16 @@ contract MeridianStablecoinTest is Test {
     address public minter = address(0x2);
     address public burner = address(0x3);
     address public user = address(0x4);
-    address public complianceOracle = address(0x5);
+    MockComplianceOracle public mockOracle;
 
     // Decimal scaling helpers
     uint256 constant TOKEN_UNIT = 10 ** 6;    // 6 decimals for tokens
     uint256 constant RESERVE_UNIT = 10 ** 2;  // 2 decimals for reserves
 
     function setUp() public {
+        // Deploy mock oracle (CONTRACT-CRIT-001: Must be a contract, not EOA)
+        mockOracle = new MockComplianceOracle();
+
         // Deploy implementation
         implementation = new MeridianStablecoin();
 
@@ -36,7 +55,7 @@ contract MeridianStablecoinTest is Test {
             "EUR_BASKET",
             MeridianStablecoin.BasketType.SingleCurrency,
             admin,
-            complianceOracle
+            address(mockOracle)  // CONTRACT-CRIT-001: Use deployed contract address
         );
 
         // Deploy proxy
@@ -79,7 +98,7 @@ contract MeridianStablecoinTest is Test {
             "TEST",
             MeridianStablecoin.BasketType.CustomBasket,
             admin,
-            complianceOracle
+            address(mockOracle)  // CONTRACT-CRIT-001: Use deployed contract
         );
     }
 
