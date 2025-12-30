@@ -33,6 +33,7 @@ pub struct UserResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct RegisterRequest {
     pub email: String,
     pub password: String,
@@ -45,6 +46,9 @@ pub async fn login(
     state: web::Data<Arc<AppState>>,
     req: web::Json<LoginRequest>,
 ) -> Result<HttpResponse, ApiError> {
+    // BE-CRIT-001: Validate email format before any database operations
+    validate_email(&req.email)?;
+
     // Log login attempt without exposing full email (PII)
     let masked_email = mask_email(&req.email);
     tracing::info!(email = %masked_email, "Login attempt");
@@ -85,8 +89,12 @@ pub async fn login(
         return Err(ApiError::Unauthorized("Invalid credentials".to_string()));
     }
 
-    // Safe to unwrap here since we verified user_exists
-    let user = user.unwrap();
+    // Extract user from Option - guaranteed to be Some since we verified user_exists above
+    let user = user.ok_or_else(|| {
+        // This should never happen due to the check above, but handle gracefully
+        tracing::error!("Unexpected: user was None after existence check");
+        ApiError::InternalError("Authentication state error".to_string())
+    })?;
 
     // Generate tokens
     let access_token = generate_token();
@@ -161,6 +169,9 @@ pub async fn register(
     state: web::Data<Arc<AppState>>,
     req: web::Json<RegisterRequest>,
 ) -> Result<HttpResponse, ApiError> {
+    // BE-CRIT-001: Validate email format before any database operations
+    validate_email(&req.email)?;
+
     // Log registration attempt without exposing full email (PII)
     let masked_email = mask_email(&req.email);
     tracing::info!(email = %masked_email, "Registration attempt");
@@ -596,12 +607,34 @@ fn generate_token() -> String {
     hex::encode(bytes)
 }
 
-/// Hash token using SHA-256 for storage
-/// Raw token is returned to client, hash is stored in database
+/// Hash token using SHA-256 with salt for storage
+/// Raw token is returned to client, salted hash is stored in database
+/// BE-CRIT-004: Added salt to prevent rainbow table attacks
 fn hash_token(token: &str) -> String {
     use sha2::{Sha256, Digest};
+    use std::sync::OnceLock;
+
+    // Use static OnceLock to cache the salt for performance
+    static TOKEN_SALT: OnceLock<String> = OnceLock::new();
+
+    let salt = TOKEN_SALT.get_or_init(|| {
+        std::env::var("SESSION_TOKEN_SALT").unwrap_or_else(|_| {
+            // In development, use a default salt with warning
+            if std::env::var("ENVIRONMENT")
+                .map(|e| e.to_lowercase() == "production")
+                .unwrap_or(false)
+            {
+                // Production MUST have salt configured - panic to prevent insecure operation
+                panic!("SESSION_TOKEN_SALT must be set in production environment");
+            }
+            tracing::warn!("Using default session token salt - set SESSION_TOKEN_SALT in production");
+            "dev-session-salt-not-for-production".to_string()
+        })
+    });
+
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
+    hasher.update(salt.as_bytes());
     hex::encode(hasher.finalize())
 }
 
@@ -621,6 +654,70 @@ fn verify_password(password: &str, hash: &str) -> Result<bool, ApiError> {
         tracing::error!("Failed to verify password: {}", e);
         ApiError::InternalError("Password verification failed".to_string())
     })
+}
+
+/// BE-CRIT-001: Validate email format
+/// Requirements: valid email format with basic regex validation
+fn validate_email(email: &str) -> Result<(), ApiError> {
+    // Basic email validation:
+    // - Not empty
+    // - Contains exactly one @
+    // - Has non-empty local and domain parts
+    // - Domain has at least one dot
+    // - Max 254 characters (RFC 5321)
+    // - Only printable ASCII characters
+
+    if email.is_empty() {
+        return Err(ApiError::BadRequest("Email cannot be empty".to_string()));
+    }
+
+    if email.len() > 254 {
+        return Err(ApiError::BadRequest("Email cannot exceed 254 characters".to_string()));
+    }
+
+    // Only printable ASCII allowed
+    if !email.chars().all(|c| c.is_ascii() && (' '..='~').contains(&c)) {
+        return Err(ApiError::BadRequest("Email contains invalid characters".to_string()));
+    }
+
+    // Split on @ and validate structure
+    let parts: Vec<&str> = email.split('@').collect();
+    if parts.len() != 2 {
+        return Err(ApiError::BadRequest("Email must contain exactly one @ symbol".to_string()));
+    }
+
+    let local = parts[0];
+    let domain = parts[1];
+
+    // Local part validation
+    if local.is_empty() || local.len() > 64 {
+        return Err(ApiError::BadRequest("Invalid email local part".to_string()));
+    }
+
+    // Domain part validation
+    if domain.is_empty() || !domain.contains('.') {
+        return Err(ApiError::BadRequest("Invalid email domain".to_string()));
+    }
+
+    // Domain cannot start or end with dot
+    if domain.starts_with('.') || domain.ends_with('.') {
+        return Err(ApiError::BadRequest("Invalid email domain format".to_string()));
+    }
+
+    // Basic character validation for local part
+    // Allow alphanumeric, dots, hyphens, underscores, plus signs
+    let valid_local_chars = |c: char| c.is_alphanumeric() || c == '.' || c == '-' || c == '_' || c == '+';
+    if !local.chars().all(valid_local_chars) {
+        return Err(ApiError::BadRequest("Email local part contains invalid characters".to_string()));
+    }
+
+    // Basic character validation for domain
+    let valid_domain_chars = |c: char| c.is_alphanumeric() || c == '.' || c == '-';
+    if !domain.chars().all(valid_domain_chars) {
+        return Err(ApiError::BadRequest("Email domain contains invalid characters".to_string()));
+    }
+
+    Ok(())
 }
 
 /// Validate password complexity
