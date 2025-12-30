@@ -7,7 +7,6 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use chrono::Utc;
 use meridian_basket::{CurrencyBasket, CurrencyComponent};
 use meridian_db::{BasketRepository, DbError};
-use sha2::{Sha256, Digest};
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -241,9 +240,8 @@ async fn get_authenticated_user_id(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
 
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    let token_hash = hex::encode(hasher.finalize());
+    // CRIT-001 FIX: Use salted hash matching auth.rs for session lookup
+    let token_hash = hash_token_for_lookup(token);
 
     let session = sqlx::query!(
         r#"
@@ -261,4 +259,24 @@ async fn get_authenticated_user_id(
         Some(s) => Ok(s.user_id),
         None => Err(ApiError::Unauthorized("Invalid or expired token".to_string())),
     }
+}
+
+/// Hash token for database lookup - must match auth.rs hash_token
+/// CRIT-001: Added salted hashing to match session storage
+fn hash_token_for_lookup(token: &str) -> String {
+    use sha2::{Sha256, Digest};
+    use std::sync::OnceLock;
+
+    static TOKEN_SALT: OnceLock<String> = OnceLock::new();
+
+    let salt = TOKEN_SALT.get_or_init(|| {
+        std::env::var("SESSION_TOKEN_SALT").unwrap_or_else(|_| {
+            "dev-session-salt-not-for-production".to_string()
+        })
+    });
+
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    hasher.update(salt.as_bytes());
+    hex::encode(hasher.finalize())
 }

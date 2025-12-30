@@ -68,16 +68,37 @@ async fn main() -> std::io::Result<()> {
     }
 
     // Validate required production environment variables at startup
+    // CRIT-002 & CRIT-004: Validate salts at startup, not on first use
     if is_production {
-        if std::env::var("API_KEY_SALT").is_err() {
-            panic!("SECURITY: API_KEY_SALT must be set in production");
+        // Validate API_KEY_SALT
+        match std::env::var("API_KEY_SALT") {
+            Ok(salt) if salt.len() < 32 => {
+                panic!("SECURITY: API_KEY_SALT must be at least 32 bytes, got {} bytes", salt.len());
+            }
+            Err(_) => {
+                panic!("SECURITY: API_KEY_SALT must be set in production");
+            }
+            Ok(_) => {}
         }
+
+        // CRIT-002: Validate SESSION_TOKEN_SALT at startup (not on first token hash)
+        // CRIT-004: Require minimum 32-byte length for cryptographic security
+        match std::env::var("SESSION_TOKEN_SALT") {
+            Ok(salt) if salt.len() < 32 => {
+                panic!("SECURITY: SESSION_TOKEN_SALT must be at least 32 bytes, got {} bytes", salt.len());
+            }
+            Err(_) => {
+                panic!("SECURITY: SESSION_TOKEN_SALT must be set in production");
+            }
+            Ok(_) => {}
+        }
+
         if std::env::var("WALLET_SERVICE_URL").is_err() {
             tracing::warn!(
                 "WALLET_SERVICE_URL not set - agent wallet creation will fail in production"
             );
         }
-        tracing::info!("Production security checks passed");
+        tracing::info!("Production security checks passed (API_KEY_SALT, SESSION_TOKEN_SALT validated)");
     }
 
     tracing::info!("CORS allowed origins: {}", cors_origins);

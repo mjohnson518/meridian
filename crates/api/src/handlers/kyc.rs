@@ -355,9 +355,8 @@ async fn get_authenticated_user(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
 
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    let token_hash = hex::encode(hasher.finalize());
+    // CRIT-001 FIX: Use salted hash matching auth.rs for session lookup
+    let token_hash = hash_token_for_lookup(token);
 
     let session = sqlx::query!(
         r#"
@@ -381,6 +380,25 @@ async fn get_authenticated_user(
     }
 }
 
+/// Hash token for database lookup - must match auth.rs hash_token
+/// CRIT-001: Added salted hashing to match session storage
+fn hash_token_for_lookup(token: &str) -> String {
+    use std::sync::OnceLock;
+
+    static TOKEN_SALT: OnceLock<String> = OnceLock::new();
+
+    let salt = TOKEN_SALT.get_or_init(|| {
+        std::env::var("SESSION_TOKEN_SALT").unwrap_or_else(|_| {
+            "dev-session-salt-not-for-production".to_string()
+        })
+    });
+
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    hasher.update(salt.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
 /// Verify the caller has ADMIN role
 async fn verify_admin(
     state: &web::Data<Arc<AppState>>,
@@ -394,10 +412,8 @@ async fn verify_admin(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
 
-    // Hash token to compare with stored hash
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    let token_hash = hex::encode(hasher.finalize());
+    // CRIT-001 FIX: Use salted hash matching auth.rs for session lookup
+    let token_hash = hash_token_for_lookup(token);
 
     // Look up session and user role
     let session = sqlx::query!(
