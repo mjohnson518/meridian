@@ -14,9 +14,11 @@ if (IS_PRODUCTION && !process.env.NEXT_PUBLIC_WS_URL) {
   console.error('[WebSocket] SECURITY WARNING: NEXT_PUBLIC_WS_URL not configured for production');
 }
 
-// Validate WS_URL uses secure protocol in production
-if (IS_PRODUCTION && WS_URL.startsWith('ws://')) {
-  console.error('[WebSocket] SECURITY WARNING: WebSocket using insecure ws:// protocol in production. Use wss:// instead.');
+// SECURITY: Validate WS_URL uses secure protocol in production
+// FRONTEND-CRIT-002: Hard fail on insecure WebSocket in production
+const WS_PROTOCOL_ERROR = IS_PRODUCTION && WS_URL.startsWith('ws://');
+if (WS_PROTOCOL_ERROR) {
+  console.error('[WebSocket] SECURITY ERROR: WebSocket using insecure ws:// protocol in production. Use wss:// instead.');
 }
 
 // Debug logging that only runs in development
@@ -44,6 +46,11 @@ const eventListeners: Map<string, Set<EventCallback>> = new Map();
 
 // WebSocket connection management
 export function connectWebSocket() {
+  // SECURITY: Block insecure WebSocket connections in production
+  if (WS_PROTOCOL_ERROR) {
+    throw new Error('SECURITY: Cannot connect to insecure ws:// WebSocket in production. Configure NEXT_PUBLIC_WS_URL with wss:// protocol.');
+  }
+
   if (socket?.readyState === WebSocket.OPEN) {
     return; // Already connected
   }
