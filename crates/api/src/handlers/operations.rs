@@ -45,6 +45,54 @@ const FEE_ISSUANCE_BPS: i64 = 25; // 25 basis points
 const FEE_REDEMPTION_BPS: i64 = 25;
 const RESERVE_BUFFER_PERCENT: i64 = 2; // 2% over-collateralization
 
+// SECURITY: Amount validation bounds
+// Max transaction: 10 billion units (prevents overflow and unrealistic requests)
+const MAX_TRANSACTION_AMOUNT: &str = "10000000000";
+// Min FX rate to prevent division issues (0.0000001)
+const MIN_FX_RATE: &str = "0.0000001";
+
+/// Validate amount is positive and within reasonable bounds
+/// Returns Ok(()) if valid, Err(ApiError) if not
+fn validate_amount(amount: &Decimal, context: &str) -> Result<(), ApiError> {
+    // BACKEND-CRIT-001: Amount must be greater than zero
+    if *amount <= Decimal::ZERO {
+        tracing::warn!(amount = %amount, context = context, "Invalid amount: must be greater than zero");
+        return Err(ApiError::BadRequest("Amount must be greater than zero".to_string()));
+    }
+
+    // BACKEND-HIGH-002: Amount must not exceed max (prevents overflow, unrealistic requests)
+    let max_amount = Decimal::from_str(MAX_TRANSACTION_AMOUNT)
+        .expect("MAX_TRANSACTION_AMOUNT is a valid constant");
+    if *amount > max_amount {
+        tracing::warn!(amount = %amount, max = %max_amount, context = context, "Amount exceeds maximum");
+        return Err(ApiError::BadRequest(format!(
+            "Amount exceeds maximum allowed: {}",
+            MAX_TRANSACTION_AMOUNT
+        )));
+    }
+
+    Ok(())
+}
+
+/// Validate FX rate is positive and reasonable
+fn validate_fx_rate(rate: &Decimal, currency: &str) -> Result<(), ApiError> {
+    // BACKEND-CRIT-003: FX rate must be greater than zero to prevent division errors
+    let min_rate = Decimal::from_str(MIN_FX_RATE)
+        .expect("MIN_FX_RATE is a valid constant");
+
+    if *rate <= Decimal::ZERO {
+        tracing::error!(rate = %rate, currency = currency, "Invalid FX rate: zero or negative");
+        return Err(ApiError::InternalError("Invalid FX rate received from oracle".to_string()));
+    }
+
+    if *rate < min_rate {
+        tracing::warn!(rate = %rate, currency = currency, min = %min_rate, "FX rate suspiciously low");
+        return Err(ApiError::InternalError("FX rate below minimum threshold".to_string()));
+    }
+
+    Ok(())
+}
+
 /// Supported currency codes (ISO 4217)
 /// Only these currencies can be minted/burned on the platform
 const SUPPORTED_CURRENCIES: &[&str] = &["EUR", "GBP", "JPY", "MXN", "BRL", "ARS"];
@@ -110,8 +158,15 @@ pub async fn mint(
     let amount_decimal = Decimal::from_str(&req.amount)
         .map_err(|_| ApiError::BadRequest("Invalid amount format".to_string()))?;
 
+    // BACKEND-CRIT-001: Validate amount is positive and within bounds
+    validate_amount(&amount_decimal, "mint")?;
+
     // Get FX rate (from oracle or fallback)
     let fx_rate = get_fx_rate(&state, &req.currency).await?;
+
+    // BACKEND-CRIT-003: Validate FX rate before division
+    validate_fx_rate(&fx_rate, &req.currency)?;
+
     let usd_value = amount_decimal / fx_rate;
 
     // Calculate fees and requirements
@@ -212,8 +267,15 @@ pub async fn burn(
     let amount_decimal = Decimal::from_str(&req.amount)
         .map_err(|_| ApiError::BadRequest("Invalid amount format".to_string()))?;
 
+    // BACKEND-CRIT-001: Validate amount is positive and within bounds
+    validate_amount(&amount_decimal, "burn")?;
+
     // Get FX rate
     let fx_rate = get_fx_rate(&state, &req.currency).await?;
+
+    // BACKEND-CRIT-003: Validate FX rate before division
+    validate_fx_rate(&fx_rate, &req.currency)?;
+
     let usd_value = amount_decimal / fx_rate;
 
     // Calculate redemption fee
