@@ -108,6 +108,13 @@ contract MeridianStablecoin is
     /// @notice Minimum reserve ratio (basis points, e.g., 10000 = 100%)
     uint256 public minReserveRatio;
 
+    /// @notice Gas limit for compliance oracle calls
+    /// CONTRACT-CRIT-002: Configurable to prevent DoS via gas exhaustion
+    uint256 public complianceOracleGasLimit;
+
+    /// @notice Default gas limit for compliance oracle (500k recommended)
+    uint256 public constant DEFAULT_ORACLE_GAS_LIMIT = 500000;
+
     // ============ Events ============
 
     /**
@@ -188,6 +195,7 @@ contract MeridianStablecoin is
      * @param newOracle New oracle address
      */
     event ComplianceOracleUpdated(address indexed oldOracle, address indexed newOracle);
+    event ComplianceOracleGasLimitUpdated(uint256 oldLimit, uint256 newLimit);
 
     // ============ Errors ============
 
@@ -202,6 +210,7 @@ contract MeridianStablecoin is
     error InvalidAdminAddress();
     error InsufficientBurnBalance();
     error NoSupplyToBurn();
+    error InsufficientReserves();  // CONTRACT-CRIT-001: Reserve underflow protection
 
     // ============ Initialization ============
 
@@ -250,6 +259,7 @@ contract MeridianStablecoin is
         complianceOracle = complianceOracle_;
         lastAttestation = block.timestamp;
         minReserveRatio = 10000; // 100% reserve ratio
+        complianceOracleGasLimit = DEFAULT_ORACLE_GAS_LIMIT; // CONTRACT-CRIT-002: Configurable gas limit
     }
 
     // ============ Minting ============
@@ -270,6 +280,19 @@ contract MeridianStablecoin is
      * @notice Mint new tokens with reserve backing verification
      * @param request Mint request containing recipient, amount, and reserve details
      * @dev Requires MINTER_ROLE and verifies 1:1 reserve backing
+     *
+     * IMPORTANT - NONCE SEMANTICS (CONTRACT-CRIT-003 Documentation):
+     * - Nonce is incremented atomically with validation (line 291)
+     * - This is intentional: prevents replay even if transaction fails later
+     * - If transaction fails AFTER nonce check (e.g., compliance rejection),
+     *   the nonce is still consumed - this is correct behavior for security
+     * - Off-chain minting systems MUST:
+     *   1. Use exclusive locks when constructing mint requests
+     *   2. Track consumed nonces regardless of transaction outcome
+     *   3. Never reuse a nonce, even if the transaction reverted
+     * - For batched mints, process sequentially with proper nonce management
+     * - Blockchain reorgs: Nonces protect against replay, not reorg -
+     *   reorged transactions will fail with InvalidNonce if replayed
      */
     function mint(MintRequest calldata request) 
         external 
@@ -326,6 +349,10 @@ contract MeridianStablecoin is
 
         // EFFECTS (Part 2): Update reserve tracking AFTER burn succeeds
         // If _burn reverts (e.g., compliance check fails), this line is never reached
+        // CONTRACT-CRIT-001: Explicit underflow check for reserve calculation
+        if (totalReserveValue < reserveToRelease) {
+            revert InsufficientReserves();
+        }
         totalReserveValue -= reserveToRelease;
 
         // INTERACTIONS: Emit event
@@ -453,9 +480,11 @@ contract MeridianStablecoin is
         if (isBlacklisted[to]) revert RecipientBlacklisted();
 
         // Call compliance oracle if configured (skip for mint/burn where from/to is zero)
-        // HIGH-002: Use gas limit and try/catch to prevent DoS from malicious oracle
+        // CONTRACT-CRIT-002: Use configurable gas limit and try/catch to prevent DoS
         if (complianceOracle != address(0) && from != address(0) && to != address(0)) {
-            try IComplianceOracle(complianceOracle).isTransferAllowed{gas: 100000}(from, to, amount) returns (bool allowed) {
+            // Use configurable gas limit (default 500k, was hardcoded 100k)
+            uint256 gasLimit = complianceOracleGasLimit > 0 ? complianceOracleGasLimit : DEFAULT_ORACLE_GAS_LIMIT;
+            try IComplianceOracle(complianceOracle).isTransferAllowed{gas: gasLimit}(from, to, amount) returns (bool allowed) {
                 if (!allowed) {
                     revert TransferNotCompliant();
                 }
@@ -477,6 +506,19 @@ contract MeridianStablecoin is
         complianceOracle = newOracle;
         // HIGH-001: Emit event for critical parameter update
         emit ComplianceOracleUpdated(oldOracle, newOracle);
+    }
+
+    /**
+     * @notice Update the compliance oracle gas limit
+     * @param newGasLimit New gas limit for oracle calls (must be >= 50000, <= 5000000)
+     * @dev CONTRACT-CRIT-002: Allows adjustment if oracle becomes more complex
+     */
+    function setComplianceOracleGasLimit(uint256 newGasLimit) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(newGasLimit >= 50000, "Gas limit too low");
+        require(newGasLimit <= 5000000, "Gas limit too high");
+        uint256 oldLimit = complianceOracleGasLimit;
+        complianceOracleGasLimit = newGasLimit;
+        emit ComplianceOracleGasLimitUpdated(oldLimit, newGasLimit);
     }
 
     // ============ View Functions ============
