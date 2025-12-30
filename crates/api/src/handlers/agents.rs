@@ -571,10 +571,18 @@ fn hash_api_key(api_key: &str) -> String {
 
     // SECURITY: Use configurable salt from environment, not hardcoded value
     // This prevents attackers who gain source access from computing hashes
+    // CRIT-002 FIX: Panic if API_KEY_SALT not set in production
     static SALT: OnceLock<String> = OnceLock::new();
     let salt = SALT.get_or_init(|| {
-        // Note: Production validation for API_KEY_SALT happens at startup in main.rs
         std::env::var("API_KEY_SALT").unwrap_or_else(|_| {
+            // In development, use a default salt with warning
+            if std::env::var("ENVIRONMENT")
+                .map(|e| e.to_lowercase() == "production")
+                .unwrap_or(false)
+            {
+                // Production MUST have salt configured - panic to prevent insecure operation
+                panic!("API_KEY_SALT must be set in production environment");
+            }
             tracing::warn!("Using default API key salt - set API_KEY_SALT in production");
             "dev-only-salt-replace-in-production".to_string()
         })
@@ -731,9 +739,8 @@ async fn get_authenticated_user_id(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
 
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    let token_hash = hex::encode(hasher.finalize());
+    // BE-MED-001 FIX: Use salted hash matching auth.rs to find session
+    let token_hash = hash_token_for_lookup(token);
 
     let session = sqlx::query!(
         r#"
@@ -751,6 +758,25 @@ async fn get_authenticated_user_id(
         Some(s) => Ok(s.user_id),
         None => Err(ApiError::Unauthorized("Invalid or expired token".to_string())),
     }
+}
+
+/// Hash token for database lookup - must match auth.rs hash_token
+/// BE-MED-001: Added salted hashing to match session storage
+fn hash_token_for_lookup(token: &str) -> String {
+    use std::sync::OnceLock;
+
+    static TOKEN_SALT: OnceLock<String> = OnceLock::new();
+
+    let salt = TOKEN_SALT.get_or_init(|| {
+        std::env::var("SESSION_TOKEN_SALT").unwrap_or_else(|_| {
+            "dev-session-salt-not-for-production".to_string()
+        })
+    });
+
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    hasher.update(salt.as_bytes());
+    hex::encode(hasher.finalize())
 }
 
 #[cfg(test)]
