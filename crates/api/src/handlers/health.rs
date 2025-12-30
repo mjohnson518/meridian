@@ -54,13 +54,13 @@ pub async fn health_check(state: web::Data<Arc<AppState>>) -> HttpResponse {
 /// Prometheus-compatible metrics endpoint
 ///
 /// GET /metrics
-/// CRIT-006: Requires authentication - exposes sensitive operational data
+/// BE-CRIT-006: Requires admin role - exposes sensitive operational data
 pub async fn metrics(
     state: web::Data<Arc<AppState>>,
     req: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
-    // CRIT-006: Verify user is authenticated before exposing metrics
-    verify_authenticated(state.db_pool.as_ref(), &req).await?;
+    // BE-CRIT-006: Verify user is authenticated AND has admin role
+    verify_admin(state.db_pool.as_ref(), &req).await?;
 
     let mut output = String::new();
 
@@ -131,9 +131,9 @@ pub async fn metrics(
         .body(output))
 }
 
-/// Verify user is authenticated
-/// CRIT-006: Helper function for metrics authentication
-async fn verify_authenticated(
+/// Verify user is authenticated and has admin role
+/// BE-CRIT-006: Helper function for metrics authentication - requires admin role
+async fn verify_admin(
     pool: &sqlx::PgPool,
     req: &HttpRequest,
 ) -> Result<(), ApiError> {
@@ -144,27 +144,56 @@ async fn verify_authenticated(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or_else(|| ApiError::Unauthorized("Missing Authorization header".to_string()))?;
 
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    let token_hash = hex::encode(hasher.finalize());
+    // Hash the token with salt (must match auth.rs hash_token function)
+    let token_hash = hash_token_for_lookup(token);
 
-    let session = sqlx::query!(
+    // Get session and check user role
+    let result = sqlx::query!(
         r#"
-        SELECT user_id
-        FROM sessions
-        WHERE access_token = $1 AND expires_at > NOW()
+        SELECT u.role
+        FROM sessions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.access_token = $1 AND s.expires_at > NOW()
         "#,
         token_hash
     )
     .fetch_optional(pool)
     .await
     .map_err(|e| {
-        tracing::error!("Database error checking auth: {}", e);
+        tracing::error!("Database error checking admin auth: {}", e);
         ApiError::InternalError("Database error".to_string())
     })?;
 
-    match session {
-        Some(_) => Ok(()),
+    match result {
+        Some(row) => {
+            // BE-CRIT-006: Check for admin role (case-insensitive)
+            // role is NOT NULL in database so use it directly or default to empty
+            let role = row.role;
+            if role.to_uppercase() == "ADMIN" {
+                Ok(())
+            } else {
+                tracing::warn!("Non-admin user attempted to access metrics endpoint");
+                Err(ApiError::Forbidden("Admin role required".to_string()))
+            }
+        }
         None => Err(ApiError::Unauthorized("Invalid or expired token".to_string())),
     }
+}
+
+/// Hash token for database lookup - must match auth.rs hash_token
+fn hash_token_for_lookup(token: &str) -> String {
+    use std::sync::OnceLock;
+
+    static TOKEN_SALT: OnceLock<String> = OnceLock::new();
+
+    let salt = TOKEN_SALT.get_or_init(|| {
+        std::env::var("SESSION_TOKEN_SALT").unwrap_or_else(|_| {
+            "dev-session-salt-not-for-production".to_string()
+        })
+    });
+
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    hasher.update(salt.as_bytes());
+    hex::encode(hasher.finalize())
 }
