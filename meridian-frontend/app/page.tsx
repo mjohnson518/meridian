@@ -189,10 +189,31 @@ export default function HomePage() {
           <p className="text-sm text-gray-500">
             © 2025 Meridian Finance. All rights reserved.
           </p>
-          <div className="flex gap-6">
-            <a href="#" className="text-gray-500 hover:text-emerald-400 transition-colors">Twitter</a>
-            <a href="#" className="text-gray-500 hover:text-emerald-400 transition-colors">GitHub</a>
-            <a href="#" className="text-gray-500 hover:text-emerald-400 transition-colors">Discord</a>
+          <div className="flex gap-4">
+            <a
+              href="/"
+              title="Coming Soon"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500 hover:text-gray-400 transition-colors cursor-default opacity-60"
+              aria-label="Twitter (Coming Soon)"
+            >
+              Twitter
+            </a>
+            <a
+              href="/"
+              title="Coming Soon"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500 hover:text-gray-400 transition-colors cursor-default opacity-60"
+              aria-label="GitHub (Coming Soon)"
+            >
+              GitHub
+            </a>
+            <a
+              href="/"
+              title="Coming Soon"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500 hover:text-gray-400 transition-colors cursor-default opacity-60"
+              aria-label="Discord (Coming Soon)"
+            >
+              Discord
+            </a>
           </div>
         </div>
       </footer>

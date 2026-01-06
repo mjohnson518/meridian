@@ -2,18 +2,40 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { SacredCard } from '@/components/sacred/Card';
 import { SacredButton } from '@/components/sacred/Button';
 import { Heading } from '@/components/sacred/Typography';
 
+const loginSchema = z.object({
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .email('Please enter a valid email address'),
+  password: z
+    .string()
+    .min(1, 'Password is required')
+    .min(6, 'Password must be at least 6 characters'),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
+
 export default function LoginPage() {
   const router = useRouter();
   const { login, isAuthenticated } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  });
 
   // Redirect if already authenticated (use useEffect to avoid render phase setState)
   useEffect(() => {
@@ -22,13 +44,12 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (data: LoginFormData) => {
     setError('');
     setLoading(true);
 
     try {
-      await login({ email, password });
+      await login({ email: data.email, password: data.password });
       router.push('/portal/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -50,39 +71,73 @@ export default function LoginPage() {
         </div>
 
         <SacredCard>
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>
-              <label className="text-xs font-mono uppercase tracking-wider text-sacred-gray-600 block mb-2">
+              <label
+                htmlFor="email"
+                className="text-xs font-mono uppercase tracking-wider text-sacred-gray-600 block mb-2"
+              >
                 Email Address
               </label>
               <input
+                id="email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border border-sacred-gray-200 rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-sacred-gray-400"
+                {...register('email')}
+                className={`w-full px-4 py-2 border rounded font-mono text-sm focus:outline-none focus:ring-2 transition-colors ${
+                  errors.email
+                    ? 'border-red-500 focus:ring-red-300'
+                    : 'border-sacred-gray-200 focus:ring-sacred-gray-400'
+                }`}
                 placeholder="treasury@company.com"
-                required
                 autoComplete="email"
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? 'email-error' : undefined}
               />
+              {errors.email && (
+                <p
+                  id="email-error"
+                  className="mt-1.5 text-xs font-mono text-red-600"
+                  role="alert"
+                >
+                  {errors.email.message}
+                </p>
+              )}
             </div>
 
             <div>
-              <label className="text-xs font-mono uppercase tracking-wider text-sacred-gray-600 block mb-2">
+              <label
+                htmlFor="password"
+                className="text-xs font-mono uppercase tracking-wider text-sacred-gray-600 block mb-2"
+              >
                 Password
               </label>
               <input
+                id="password"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-sacred-gray-200 rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-sacred-gray-400"
+                {...register('password')}
+                className={`w-full px-4 py-2 border rounded font-mono text-sm focus:outline-none focus:ring-2 transition-colors ${
+                  errors.password
+                    ? 'border-red-500 focus:ring-red-300'
+                    : 'border-sacred-gray-200 focus:ring-sacred-gray-400'
+                }`}
                 placeholder="••••••••"
-                required
                 autoComplete="current-password"
+                aria-invalid={!!errors.password}
+                aria-describedby={errors.password ? 'password-error' : undefined}
               />
+              {errors.password && (
+                <p
+                  id="password-error"
+                  className="mt-1.5 text-xs font-mono text-red-600"
+                  role="alert"
+                >
+                  {errors.password.message}
+                </p>
+              )}
             </div>
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded">
+              <div className="p-3 bg-red-50 border border-red-200 rounded" role="alert">
                 <p className="text-xs font-mono text-red-600">{error}</p>
               </div>
             )}
@@ -129,4 +184,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
