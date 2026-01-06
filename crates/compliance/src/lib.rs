@@ -217,8 +217,8 @@ impl Default for ComplianceConfig {
             enabled: true,
             sanctions_api_url: None,
             kyc_api_url: None,
-            default_daily_limit: 10_000_00, // $10,000.00 in cents
-            default_single_limit: 3_000_00,  // $3,000.00 in cents
+            default_daily_limit: 1_000_000, // $10,000.00 in cents
+            default_single_limit: 300_000,  // $3,000.00 in cents
             prohibited_countries: vec![
                 "KP".to_string(), // North Korea
                 "IR".to_string(), // Iran

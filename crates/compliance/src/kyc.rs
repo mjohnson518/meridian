@@ -107,6 +107,8 @@ pub struct KycVerificationResult {
 /// KYC service interface
 pub struct KycService {
     /// External KYC provider URL (optional)
+    /// Will be used when external KYC provider integration is implemented
+    #[allow(dead_code)]
     provider_url: Option<String>,
 }
 

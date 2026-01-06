@@ -91,10 +91,10 @@ pub struct MonitoringService {
 impl Default for MonitoringService {
     fn default() -> Self {
         Self {
-            daily_threshold: Decimal::new(10_000_00, 2),    // $10,000
-            single_threshold: Decimal::new(3_000_00, 2),    // $3,000
+            daily_threshold: Decimal::new(1_000_000, 2),    // $10,000
+            single_threshold: Decimal::new(300_000, 2),    // $3,000
             structuring_window: 10,
-            structuring_threshold: Decimal::new(9_500_00, 2), // $9,500 (just under $10k)
+            structuring_threshold: Decimal::new(950_000, 2), // $9,500 (just under $10k)
         }
     }
 }

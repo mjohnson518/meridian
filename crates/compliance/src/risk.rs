@@ -134,7 +134,7 @@ impl RiskEngine {
         }
 
         // Large transactions
-        if avg_transaction_size > 100_000_00 {
+        if avg_transaction_size > 10_000_000 {
             // > $100k
             score = score.saturating_add(5);
         }

@@ -61,8 +61,11 @@ pub enum EntityType {
 /// Sanctions screening service
 pub struct SanctionsService {
     /// API endpoint for screening provider
+    /// Will be used when external sanctions provider integration is implemented
+    #[allow(dead_code)]
     api_url: Option<String>,
     /// Last list update timestamp
+    #[allow(dead_code)]
     last_update: DateTime<Utc>,
 }
 
