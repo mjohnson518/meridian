@@ -1,14 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { useAuth, ProtectedRoute } from '@/lib/auth/AuthContext';
 import { UserRole } from '@/lib/auth/types';
-import { SacredCard } from '@/components/sacred/Card';
-import { SacredGrid } from '@/components/sacred/Grid';
-import { SacredButton } from '@/components/sacred/Button';
-import { SacredTable } from '@/components/sacred/Table';
-import { Heading, MonoDisplay, Label } from '@/components/sacred/Typography';
-import { MetricDisplay } from '@/components/meridian/MetricDisplay';
+import { PortalHeader } from '@/components/portal/PortalHeader';
+import { PortalCard } from '@/components/portal/PortalCard';
+import { PortalButton } from '@/components/portal/PortalButton';
+import { PortalInput } from '@/components/portal/PortalInput';
+import { PortalSelect } from '@/components/portal/PortalSelect';
+import { PortalMetricCard, PortalMetricGrid } from '@/components/portal/PortalMetricCard';
+import { PortalTable, PortalTableCard } from '@/components/portal/PortalTable';
+import { PortalStatusBadge, PortalStatusDot } from '@/components/portal/PortalStatusBadge';
 import { formatCurrency, formatTimestamp } from '@/lib/utils';
 
 interface Transaction {
@@ -21,14 +24,6 @@ interface Transaction {
   to: string;
   status: 'PENDING' | 'COMPLETED' | 'FLAGGED';
   riskScore: number;
-}
-
-interface SARReport {
-  id: string;
-  transactionId: string;
-  filedDate: Date;
-  status: 'DRAFT' | 'FILED' | 'ACKNOWLEDGED';
-  reason: string;
 }
 
 const MOCK_TRANSACTIONS: Transaction[] = [
@@ -75,10 +70,24 @@ export default function CompliancePage() {
   );
 }
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 },
+};
+
 function ComplianceDashboard() {
   const { user } = useAuth();
   const [transactions] = useState<Transaction[]>(MOCK_TRANSACTIONS);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [filterType, setFilterType] = useState('all');
 
   const flaggedCount = transactions.filter(tx => tx.status === 'FLAGGED').length;
   const highRiskCount = transactions.filter(tx => tx.riskScore > 70).length;
@@ -88,252 +97,241 @@ function ComplianceDashboard() {
 
   const transactionColumns = [
     {
-      header: 'TIME',
+      header: 'Time',
       accessor: (tx: Transaction) => (
-        <span className="text-xs">{formatTimestamp(tx.timestamp)}</span>
+        <span className="text-xs text-gray-400 font-mono">{formatTimestamp(tx.timestamp)}</span>
       ),
     },
     {
-      header: 'TYPE',
+      header: 'Type',
       accessor: (tx: Transaction) => (
-        <span className={`text-xs font-medium ${
-          tx.type === 'MINT' ? 'text-emerald-600' :
-          tx.type === 'BURN' ? 'text-red-600' :
-          'text-sacred-gray-700'
-        }`}>{tx.type}</span>
+        <PortalStatusBadge
+          status={tx.type === 'MINT' ? 'success' : tx.type === 'BURN' ? 'error' : 'neutral'}
+          label={tx.type}
+          size="sm"
+        />
       ),
     },
     {
-      header: 'AMOUNT',
+      header: 'Amount',
       accessor: (tx: Transaction) => (
-        <MonoDisplay value={tx.amount} currency={tx.currency} precision={2} size="xs" />
+        <span className="font-mono text-sm text-white">
+          {formatCurrency(tx.amount)} <span className="text-gray-500">{tx.currency}</span>
+        </span>
       ),
       align: 'right' as const,
     },
     {
-      header: 'FROM',
+      header: 'From',
       accessor: (tx: Transaction) => (
-        <span className="text-xs font-mono">{tx.from.slice(0, 10)}...</span>
+        <span className="text-xs font-mono text-gray-400">{tx.from.slice(0, 10)}...</span>
       ),
     },
     {
-      header: 'TO',
+      header: 'To',
       accessor: (tx: Transaction) => (
-        <span className="text-xs font-mono">{tx.to.slice(0, 10)}...</span>
+        <span className="text-xs font-mono text-gray-400">{tx.to}</span>
       ),
     },
     {
-      header: 'RISK',
+      header: 'Risk',
       accessor: (tx: Transaction) => (
-        <div className="flex items-center space-x-1">
-          <div className={`w-2 h-2 rounded-full ${
-            tx.riskScore < 30 ? 'bg-emerald-600' :
-            tx.riskScore < 70 ? 'bg-amber-600' :
-            'bg-red-600'
-          }`} />
-          <span className="text-xs">{tx.riskScore}</span>
+        <div className="flex items-center gap-2">
+          <PortalStatusDot
+            status={tx.riskScore < 30 ? 'success' : tx.riskScore < 70 ? 'warning' : 'error'}
+            size="sm"
+          />
+          <span className="text-xs font-mono text-gray-300">{tx.riskScore}</span>
         </div>
       ),
       align: 'center' as const,
     },
     {
-      header: 'STATUS',
+      header: 'Status',
       accessor: (tx: Transaction) => (
-        <span className={`text-xs font-mono ${
-          tx.status === 'COMPLETED' ? 'text-emerald-600' :
-          tx.status === 'FLAGGED' ? 'text-red-600' :
-          'text-amber-600'
-        }`}>{tx.status}</span>
+        <PortalStatusBadge
+          status={tx.status === 'COMPLETED' ? 'success' : tx.status === 'FLAGGED' ? 'error' : 'pending'}
+          label={tx.status}
+          size="sm"
+          pulse={tx.status === 'FLAGGED'}
+        />
       ),
     },
   ];
 
   return (
-    <div className="min-h-screen bg-sacred-gray-100">
-      {/* Header */}
-      <header className="bg-sacred-white border-b border-sacred-gray-200">
-        <div className="sacred-container">
-          <nav className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <a href="/portal/dashboard" className="font-mono text-lg font-medium">
-                MERIDIAN
-              </a>
-              <div className="hidden md:flex items-center space-x-6">
-                <a href="/portal/dashboard" className="text-sm font-mono uppercase tracking-wider text-sacred-gray-600 hover:text-sacred-black">
-                  Dashboard
-                </a>
-                <a href="/portal/mint" className="text-sm font-mono uppercase tracking-wider text-sacred-gray-600 hover:text-sacred-black">
-                  Mint/Burn
-                </a>
-                <a href="/portal/compliance" className="text-sm font-mono uppercase tracking-wider text-sacred-black">
-                  Compliance
-                </a>
-                <a href="/portal/settings" className="text-sm font-mono uppercase tracking-wider text-sacred-gray-600 hover:text-sacred-black">
-                  Settings
-                </a>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-xs font-mono uppercase text-sacred-gray-600">
-                {user?.organization}
-              </div>
-            </div>
-          </nav>
-        </div>
-      </header>
+    <div className="min-h-screen">
+      <PortalHeader currentPath="/portal/compliance" />
 
-      {/* Main Content */}
-      <div className="sacred-container py-8">
-        <div className="mb-8">
-          <Heading level={1} className="text-3xl mb-2">
-            Compliance Dashboard
-          </Heading>
-          <p className="text-sacred-gray-600">
+      <motion.div
+        className="max-w-7xl mx-auto px-6 py-8"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {/* Page Header */}
+        <motion.div variants={itemVariants} className="mb-8">
+          <h1 className="text-4xl font-heading font-bold mb-2">
+            <span className="bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
+              Compliance Dashboard
+            </span>
+          </h1>
+          <p className="text-gray-500">
             Transaction monitoring and AML/KYC oversight
           </p>
-        </div>
+        </motion.div>
 
         {/* Alert Metrics */}
-        <SacredGrid cols={4} gap={4} className="mb-8">
-          <SacredCard>
-            <MetricDisplay
+        <motion.div variants={itemVariants} className="mb-8">
+          <PortalMetricGrid columns={4}>
+            <PortalMetricCard
               label="Flagged Transactions"
               value={flaggedCount}
               format="number"
               status={flaggedCount > 0 ? 'warning' : 'healthy'}
+              icon={
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              }
             />
-          </SacredCard>
-          
-          <SacredCard>
-            <MetricDisplay
+            <PortalMetricCard
               label="High Risk Count"
               value={highRiskCount}
               format="number"
               status={highRiskCount > 0 ? 'critical' : 'healthy'}
+              icon={
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              }
             />
-          </SacredCard>
-          
-          <SacredCard>
-            <MetricDisplay
+            <PortalMetricCard
               label="24h Volume"
               value={totalVolume24h}
               format="currency"
+              status="neutral"
+              icon={
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+              }
             />
-          </SacredCard>
-          
-          <SacredCard>
-            <MetricDisplay
+            <PortalMetricCard
               label="SARs Filed (30d)"
               value={0}
               format="number"
+              status="healthy"
+              icon={
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              }
             />
-          </SacredCard>
-        </SacredGrid>
+          </PortalMetricGrid>
+        </motion.div>
 
         {/* Transaction Monitoring */}
-        <SacredCard className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <Heading level={3} className="text-lg font-mono uppercase">
-              Transaction Monitoring
-            </Heading>
-            <div className="flex items-center space-x-2">
-              <select className="px-3 py-1 border border-sacred-gray-200 rounded font-mono text-xs">
-                <option>All Transactions</option>
-                <option>Flagged Only</option>
-                <option>High Risk (&gt;70)</option>
-                <option>Large Amounts (&gt;$10k)</option>
-              </select>
-              <SacredButton variant="outline" size="sm">
-                Export CSV
-              </SacredButton>
-            </div>
-          </div>
-
-          <SacredTable
+        <motion.div variants={itemVariants} className="mb-8">
+          <PortalTableCard
+            title="Transaction Monitoring"
+            action={
+              <div className="flex items-center gap-3">
+                <PortalSelect
+                  options={[
+                    { value: 'all', label: 'All Transactions' },
+                    { value: 'flagged', label: 'Flagged Only' },
+                    { value: 'high-risk', label: 'High Risk (>70)' },
+                    { value: 'large', label: 'Large Amounts (>$10k)' },
+                  ]}
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  fullWidth={false}
+                  className="w-48"
+                />
+                <PortalButton variant="outline" size="sm">
+                  Export CSV
+                </PortalButton>
+              </div>
+            }
             columns={transactionColumns}
             data={transactions}
             dense
             onRowClick={setSelectedTx}
           />
-        </SacredCard>
+        </motion.div>
 
-        {/* SAR Filing */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <SacredCard>
-            <Heading level={3} className="text-lg font-mono uppercase mb-4">
-              SAR Filing Queue
-            </Heading>
-            
-            <div className="space-y-3">
-              {flaggedCount > 0 ? (
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-mono uppercase text-amber-800 mb-1">
-                        Action Required
-                      </div>
-                      <p className="text-xs text-amber-700">
-                        {flaggedCount} transaction(s) flagged for review
-                      </p>
+        {/* SAR Filing & Blacklist */}
+        <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* SAR Filing Queue */}
+          <PortalCard header="SAR Filing Queue" hoverEffect={false}>
+            {flaggedCount > 0 ? (
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-mono uppercase text-amber-400 mb-1">
+                      Action Required
                     </div>
-                    <SacredButton variant="primary" size="sm">
-                      Review →
-                    </SacredButton>
+                    <p className="text-xs text-amber-300/70">
+                      {flaggedCount} transaction(s) flagged for review
+                    </p>
                   </div>
+                  <PortalButton variant="primary" size="sm">
+                    Review
+                  </PortalButton>
                 </div>
-              ) : (
-                <div className="text-center py-8">
-                  <div className="text-4xl mb-2">✓</div>
-                  <p className="text-sm text-sacred-gray-500 font-mono">
-                    No pending SAR filings
-                  </p>
-                </div>
-              )}
-            </div>
-          </SacredCard>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-3 text-emerald-500">✓</div>
+                <p className="text-sm text-gray-500 font-mono">
+                  No pending SAR filings
+                </p>
+              </div>
+            )}
+          </PortalCard>
 
-          <SacredCard>
-            <Heading level={3} className="text-lg font-mono uppercase mb-4">
-              Blacklist Management
-            </Heading>
-            
+          {/* Blacklist Management */}
+          <PortalCard header="Blacklist Management" hoverEffect={false}>
             <div className="space-y-4">
               <div>
-                <Label>Add Address to Blacklist</Label>
-                <div className="flex gap-2 mt-2">
-                  <input
-                    type="text"
+                <label className="text-xs font-mono uppercase tracking-wider text-gray-500 block mb-2">
+                  Add Address to Blacklist
+                </label>
+                <div className="flex gap-2">
+                  <PortalInput
                     placeholder="0x..."
-                    className="flex-1 px-4 py-2 border border-sacred-gray-200 rounded font-mono text-sm"
+                    className="flex-1"
                   />
-                  <SacredButton variant="primary" size="sm">
+                  <PortalButton variant="primary" size="sm">
                     Add
-                  </SacredButton>
+                  </PortalButton>
                 </div>
               </div>
 
               <div>
-                <Label>Currently Blacklisted</Label>
-                <div className="mt-2 p-3 bg-sacred-gray-100 rounded">
-                  <p className="text-xs font-mono text-sacred-gray-600">
+                <label className="text-xs font-mono uppercase tracking-wider text-gray-500 block mb-2">
+                  Currently Blacklisted
+                </label>
+                <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5">
+                  <p className="text-xs font-mono text-gray-500">
                     0 addresses blacklisted
                   </p>
                 </div>
               </div>
 
-              <div className="text-xs text-sacred-gray-600">
-                <p className="mb-2">
-                  <strong className="font-mono">Sanctions Screening:</strong>
-                </p>
-                <p>
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
+                <h4 className="text-xs font-mono uppercase text-gray-400 mb-2">
+                  Sanctions Screening
+                </h4>
+                <p className="text-xs text-gray-500">
                   All addresses are automatically screened against OFAC, EU, and UN sanctions lists via Chainalysis integration.
                 </p>
               </div>
             </div>
-          </SacredCard>
-        </div>
-      </div>
+          </PortalCard>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }
-

@@ -1,13 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { useAuth, ProtectedRoute } from '@/lib/auth/AuthContext';
-import { SacredCard } from '@/components/sacred/Card';
-import { SacredGrid } from '@/components/sacred/Grid';
-import { SacredButton } from '@/components/sacred/Button';
-import { Heading, MonoDisplay, Label } from '@/components/sacred/Typography';
-import { MetricDisplay } from '@/components/meridian/MetricDisplay';
+import { PortalHeader } from '@/components/portal/PortalHeader';
+import { PortalCard } from '@/components/portal/PortalCard';
+import { PortalButton } from '@/components/portal/PortalButton';
+import { PortalAmountInput } from '@/components/portal/PortalInput';
+import { PortalMetricCard } from '@/components/portal/PortalMetricCard';
+import { PortalStatusDot } from '@/components/portal/PortalStatusBadge';
+import { NoTransactionsEmptyState } from '@/components/portal/PortalEmptyState';
 import { formatCurrency, formatPercentage } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 const SUPPORTED_CURRENCIES = [
   { code: 'EUR', name: 'Euro', rate: 1.09 },
@@ -17,9 +21,9 @@ const SUPPORTED_CURRENCIES = [
 ];
 
 const FEES = {
-  issuance: 0.0025, // 25 bps
-  redemption: 0.0025, // 25 bps
-  custody: 0.001, // 10 bps annual
+  issuance: 0.0025,
+  redemption: 0.0025,
+  custody: 0.001,
 };
 
 export default function MintPage() {
@@ -30,30 +34,40 @@ export default function MintPage() {
   );
 }
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 },
+};
+
 function MintInterface() {
   const { user } = useAuth();
   const [mode, setMode] = useState<'mint' | 'burn'>('mint');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('EUR');
   const [loading, setLoading] = useState(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const selectedCurrency = SUPPORTED_CURRENCIES.find(c => c.code === currency);
   const numAmount = parseFloat(amount) || 0;
 
-  // Calculate requirements
   const usdValue = numAmount / (selectedCurrency?.rate || 1);
-  const issuanceFee = usdValue * FEES.issuance;
-  const bondRequired = usdValue * 1.02; // 102% to maintain buffer
-  const totalCost = usdValue + issuanceFee;
-
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const fee = usdValue * FEES.issuance;
+  const bondRequired = usdValue * 1.02;
+  const totalCost = usdValue + fee;
 
   const handleExecute = async () => {
     setLoading(true);
     setNotification(null);
 
     try {
-      // Use user ID from auth context or fallback to test user ID (to ensure backend works)
       const userId = user?.id ? parseInt(user.id) : 1;
 
       if (mode === 'mint') {
@@ -66,7 +80,7 @@ function MintInterface() {
         type: 'success',
         message: `${mode === 'mint' ? 'Mint' : 'Burn'} request submitted successfully! Settlement in T+1.`
       });
-      setAmount(''); // Reset form
+      setAmount('');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Please try again.';
       setNotification({
@@ -79,320 +93,284 @@ function MintInterface() {
   };
 
   return (
-    <div className="min-h-screen bg-sacred-gray-100">
-      {/* Header */}
-      <header className="bg-sacred-white border-b border-sacred-gray-200">
-        <div className="sacred-container px-6">
-          <nav className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <a href="/portal/dashboard" className="font-mono text-lg font-medium">
-                MERIDIAN
-              </a>
-              <div className="hidden md:flex items-center space-x-6">
-                <a href="/portal/dashboard" className="text-sm font-mono uppercase tracking-wider text-sacred-gray-600 hover:text-sacred-black">
-                  Dashboard
-                </a>
-                <a href="/portal/mint" className="text-sm font-mono uppercase tracking-wider text-sacred-black">
-                  Mint/Burn
-                </a>
-                <a href="/portal/compliance" className="text-sm font-mono uppercase tracking-wider text-sacred-gray-600 hover:text-sacred-black">
-                  Compliance
-                </a>
-                <a href="/portal/settings" className="text-sm font-mono uppercase tracking-wider text-sacred-gray-600 hover:text-sacred-black">
-                  Settings
-                </a>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-xs font-mono uppercase text-sacred-gray-600">
-                {user?.organization}
-              </div>
-            </div>
-          </nav>
-        </div>
-      </header>
+    <div className="min-h-screen">
+      <PortalHeader currentPath="/portal/mint" />
 
-      {/* Main Content */}
-      <div className="sacred-container px-6 py-8">
-        <div className="mb-8">
-          <Heading level={1} className="text-3xl mb-2">
-            Mint & Burn Operations
-          </Heading>
-          <p className="text-sacred-gray-600">
+      <motion.div
+        className="max-w-7xl mx-auto px-6 py-8"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {/* Page Header */}
+        <motion.div variants={itemVariants} className="mb-8">
+          <h1 className="text-4xl font-heading font-bold mb-2">
+            <span className="bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
+              Mint & Burn Operations
+            </span>
+          </h1>
+          <p className="text-gray-500">
             Create or redeem multi-currency stablecoins
           </p>
-        </div>
+        </motion.div>
 
-        <SacredGrid cols={12} gap={6}>
+        <div className="grid grid-cols-12 gap-6">
           {/* Main Panel */}
-          <div className="col-span-12 lg:col-span-8">
-            <SacredCard>
+          <motion.div variants={itemVariants} className="col-span-12 lg:col-span-8">
+            <PortalCard hoverEffect={false} padding="lg">
               {/* Notification Banner */}
               {notification && (
-                <div
-                  className={`mb-6 p-4 rounded border ${
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={cn(
+                    "mb-6 p-4 rounded-xl border",
                     notification.type === 'success'
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                      : 'bg-rose-50 border-rose-200 text-rose-800'
-                  }`}
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                      : 'bg-red-500/10 border-red-500/30 text-red-400'
+                  )}
                 >
                   <div className="flex justify-between items-center">
                     <span className="font-mono text-sm">{notification.message}</span>
                     <button
                       onClick={() => setNotification(null)}
-                      className="text-xs font-mono uppercase hover:opacity-70"
+                      className="text-xs font-mono uppercase hover:opacity-70 transition-opacity"
                     >
                       Dismiss
                     </button>
                   </div>
-                </div>
+                </motion.div>
               )}
 
               {/* Mode Toggle */}
               <div className="grid grid-cols-2 gap-4 mb-8">
                 <button
                   onClick={() => setMode('mint')}
-                  className={`flex items-center justify-center gap-2 px-6 py-4 font-mono text-sm uppercase tracking-wider border rounded-lg transition-all duration-200 ${mode === 'mint'
-                    ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/20 scale-[1.02]'
-                    : 'bg-sacred-white text-sacred-gray-500 border-sacred-gray-200 hover:border-emerald-200 hover:text-emerald-600 hover:bg-emerald-50/10'
-                    }`}
+                  className={cn(
+                    "relative flex items-center justify-center gap-3 px-6 py-4",
+                    "font-mono text-sm uppercase tracking-wider",
+                    "rounded-xl border transition-all duration-300",
+                    mode === 'mint'
+                      ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400 shadow-[0_0_20px_-5px_rgba(16,185,129,0.3)]'
+                      : 'bg-white/[0.02] border-white/10 text-gray-400 hover:border-emerald-500/30 hover:text-emerald-400'
+                  )}
                 >
-                  <div className={`w-2 h-2 rounded-full ${mode === 'mint' ? 'bg-white' : 'bg-emerald-500'}`} />
+                  <div className={cn(
+                    "w-2 h-2 rounded-full transition-colors",
+                    mode === 'mint' ? 'bg-emerald-400' : 'bg-gray-600'
+                  )} />
                   Mint
                 </button>
                 <button
                   onClick={() => setMode('burn')}
-                  className={`flex items-center justify-center gap-2 px-6 py-4 font-mono text-sm uppercase tracking-wider border rounded-lg transition-all duration-200 ${mode === 'burn'
-                    ? 'bg-rose-500 text-white border-rose-500 shadow-lg shadow-rose-500/20 scale-[1.02]'
-                    : 'bg-sacred-white text-sacred-gray-500 border-sacred-gray-200 hover:border-rose-200 hover:text-rose-600 hover:bg-rose-50/10'
-                    }`}
+                  className={cn(
+                    "relative flex items-center justify-center gap-3 px-6 py-4",
+                    "font-mono text-sm uppercase tracking-wider",
+                    "rounded-xl border transition-all duration-300",
+                    mode === 'burn'
+                      ? 'bg-red-500/10 border-red-500/50 text-red-400 shadow-[0_0_20px_-5px_rgba(239,68,68,0.3)]'
+                      : 'bg-white/[0.02] border-white/10 text-gray-400 hover:border-red-500/30 hover:text-red-400'
+                  )}
                 >
-                  <div className={`w-2 h-2 rounded-full ${mode === 'burn' ? 'bg-white' : 'bg-rose-500'}`} />
+                  <div className={cn(
+                    "w-2 h-2 rounded-full transition-colors",
+                    mode === 'burn' ? 'bg-red-400' : 'bg-gray-600'
+                  )} />
                   Burn
                 </button>
               </div>
 
               {/* Amount Input */}
               <div className="space-y-6">
-                <div>
-                  <Label>Amount</Label>
-                  <div className="flex gap-3 mt-2">
-                    <input
-                      type="number"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      className="flex-1 px-6 py-4 border border-sacred-gray-200 rounded font-mono text-3xl text-right focus:outline-none focus:ring-2 focus:ring-sacred-gray-400"
-                      placeholder="0.00"
-                      step="0.01"
-                      min="0"
-                    />
-                    <select
-                      value={currency}
-                      onChange={(e) => setCurrency(e.target.value)}
-                      className="px-4 py-2 border border-sacred-gray-200 rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-sacred-gray-400"
-                    >
-                      {SUPPORTED_CURRENCIES.map(curr => (
-                        <option key={curr.code} value={curr.code}>
-                          {curr.code}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                <PortalAmountInput
+                  label="Amount"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  currency={currency}
+                  onCurrencyChange={setCurrency}
+                  currencies={SUPPORTED_CURRENCIES}
+                />
 
                 {/* Calculation Summary */}
                 {numAmount > 0 && (
-                  <div className="p-6 bg-sacred-gray-100 rounded space-y-3">
-                    <Heading level={4} className="text-sm font-mono uppercase mb-4">
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="p-6 rounded-xl bg-white/[0.02] border border-white/5 space-y-3"
+                  >
+                    <h4 className="text-xs font-mono uppercase tracking-wider text-gray-500 mb-4">
                       {mode === 'mint' ? 'Bond Requirement' : 'Settlement Details'}
-                    </Heading>
+                    </h4>
+
+                    <div className="flex justify-between font-mono text-sm">
+                      <span className="text-gray-500">Amount in USD:</span>
+                      <span className="text-white">{formatCurrency(usdValue)}</span>
+                    </div>
+                    <div className="flex justify-between font-mono text-sm">
+                      <span className="text-gray-500">
+                        {mode === 'mint' ? 'Issuance' : 'Redemption'} Fee (25 bps):
+                      </span>
+                      <span className="text-white">{formatCurrency(fee)}</span>
+                    </div>
+
+                    <div className="h-px bg-white/10 my-3" />
 
                     {mode === 'mint' ? (
                       <>
                         <div className="flex justify-between font-mono text-sm">
-                          <span className="text-sacred-gray-600">Amount in USD:</span>
-                          <MonoDisplay value={usdValue} currency="USD" precision={2} />
-                        </div>
-                        <div className="flex justify-between font-mono text-sm">
-                          <span className="text-sacred-gray-600">Issuance Fee (25 bps):</span>
-                          <MonoDisplay value={issuanceFee} currency="USD" precision={2} />
-                        </div>
-                        <div className="flex justify-between font-mono text-sm border-t border-sacred-gray-300 pt-3">
-                          <span className="text-sacred-gray-600">Bonds Required:</span>
-                          <MonoDisplay value={bondRequired} currency="USD" precision={2} />
+                          <span className="text-gray-500">Bonds Required:</span>
+                          <span className="text-white">{formatCurrency(bondRequired)}</span>
                         </div>
                         <div className="flex justify-between font-mono text-sm font-medium">
-                          <span>Total Cost:</span>
-                          <MonoDisplay value={totalCost} currency="USD" precision={2} />
+                          <span className="text-white">Total Cost:</span>
+                          <span className="text-emerald-400">{formatCurrency(totalCost)}</span>
                         </div>
                       </>
                     ) : (
-                      <>
-                        <div className="flex justify-between font-mono text-sm">
-                          <span className="text-sacred-gray-600">Amount in USD:</span>
-                          <MonoDisplay value={usdValue} currency="USD" precision={2} />
-                        </div>
-                        <div className="flex justify-between font-mono text-sm">
-                          <span className="text-sacred-gray-600">Redemption Fee (25 bps):</span>
-                          <MonoDisplay value={issuanceFee} currency="USD" precision={2} />
-                        </div>
-                        <div className="flex justify-between font-mono text-sm font-medium border-t border-sacred-gray-300 pt-3">
-                          <span>You'll Receive:</span>
-                          <MonoDisplay value={usdValue - issuanceFee} currency="USD" precision={2} />
-                        </div>
-                      </>
+                      <div className="flex justify-between font-mono text-sm font-medium">
+                        <span className="text-white">You'll Receive:</span>
+                        <span className="text-emerald-400">{formatCurrency(usdValue - fee)}</span>
+                      </div>
                     )}
-                  </div>
+                  </motion.div>
                 )}
 
                 {/* Settlement Timeline */}
                 {numAmount > 0 && mode === 'mint' && (
-                  <div className="p-4 border border-sacred-gray-200 rounded">
-                    <Heading level={4} className="text-xs font-mono uppercase mb-3 text-sacred-gray-700">
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="p-4 rounded-xl border border-white/10"
+                  >
+                    <h4 className="text-xs font-mono uppercase tracking-wider text-gray-500 mb-4">
                       Settlement Timeline
-                    </Heading>
-                    <div className="space-y-2 text-xs font-mono">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sacred-gray-500">T+0:</span>
-                        <span>Deposit USD → Treasury purchases bonds</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sacred-gray-500">T+1:</span>
-                        <span>Bonds settle → Custody confirmed</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sacred-gray-500">T+1:</span>
-                        <span>Reserves attested → Stablecoins minted</span>
-                      </div>
+                    </h4>
+                    <div className="space-y-3">
+                      {[
+                        { time: 'T+0', desc: 'Deposit USD → Treasury purchases bonds' },
+                        { time: 'T+1', desc: 'Bonds settle → Custody confirmed' },
+                        { time: 'T+1', desc: 'Reserves attested → Stablecoins minted' },
+                      ].map((step, i) => (
+                        <div key={i} className="flex items-center gap-3 text-xs font-mono">
+                          <span className="text-gray-500 w-8">{step.time}:</span>
+                          <span className="text-gray-300">{step.desc}</span>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  </motion.div>
                 )}
 
                 {/* Execute Button */}
-                <SacredButton
+                <PortalButton
                   onClick={handleExecute}
-                  variant="primary"
+                  variant={mode === 'mint' ? 'primary' : 'danger'}
                   fullWidth
                   loading={loading}
                   disabled={!amount || numAmount <= 0 || loading}
+                  className="py-4"
                 >
                   {loading
                     ? `Processing ${mode}...`
-                    : `Execute ${mode === 'mint' ? 'Mint' : 'Burn'} →`}
-                </SacredButton>
+                    : `Execute ${mode === 'mint' ? 'Mint' : 'Burn'}`}
+                </PortalButton>
 
                 {mode === 'mint' && numAmount > 0 && (
-                  <p className="text-xs text-sacred-gray-600 text-center font-mono">
+                  <p className="text-xs text-gray-600 text-center font-mono">
                     Minimum deposit: $100,000 USD equivalent
                   </p>
                 )}
               </div>
-            </SacredCard>
-          </div>
+            </PortalCard>
+          </motion.div>
 
           {/* Side Panel */}
-          <div className="col-span-12 lg:col-span-4 space-y-4">
-            <SacredCard>
-              <Heading level={4} className="text-sm font-mono uppercase mb-4">
-                Current Reserves
-              </Heading>
-              <div className="space-y-3">
-                <MetricDisplay
-                  label="Reserve Ratio"
-                  value={100.42}
-                  format="percentage"
-                  status="healthy"
-                />
-                <MetricDisplay
-                  label="Available Capacity"
-                  value="42250"
-                  format="currency"
-                />
+          <motion.div variants={itemVariants} className="col-span-12 lg:col-span-4 space-y-4">
+            {/* Current Reserves */}
+            <PortalCard header="Current Reserves" hoverEffect={false}>
+              <div className="space-y-4">
+                <div>
+                  <span className="text-xs font-mono uppercase tracking-wider text-gray-500 block mb-1">
+                    Reserve Ratio
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-2xl text-white">{formatPercentage(100.42)}</span>
+                    <PortalStatusDot status="success" />
+                  </div>
+                </div>
+                <div>
+                  <span className="text-xs font-mono uppercase tracking-wider text-gray-500 block mb-1">
+                    Available Capacity
+                  </span>
+                  <span className="font-mono text-lg text-white">{formatCurrency(42250)}</span>
+                </div>
               </div>
-            </SacredCard>
+            </PortalCard>
 
-            <SacredCard>
-              <Heading level={4} className="text-sm font-mono uppercase mb-4">
-                Gas Estimate
-              </Heading>
+            {/* Gas Estimate */}
+            <PortalCard header="Gas Estimate" hoverEffect={false}>
               <div className="space-y-2 font-mono text-sm">
                 <div className="flex justify-between">
-                  <span className="text-sacred-gray-600">Network:</span>
-                  <span>Ethereum</span>
+                  <span className="text-gray-500">Network:</span>
+                  <span className="text-white">Ethereum</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sacred-gray-600">Est. Gas:</span>
-                  <span>~150,000</span>
+                  <span className="text-gray-500">Est. Gas:</span>
+                  <span className="text-white">~150,000</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sacred-gray-600">Gas Price:</span>
-                  <span>20 gwei</span>
+                  <span className="text-gray-500">Gas Price:</span>
+                  <span className="text-white">20 gwei</span>
                 </div>
-                <div className="flex justify-between font-medium border-t border-sacred-gray-200 pt-2 mt-2">
-                  <span>Total:</span>
-                  <span>~$6.00</span>
+                <div className="h-px bg-white/10 my-2" />
+                <div className="flex justify-between font-medium">
+                  <span className="text-white">Total:</span>
+                  <span className="text-emerald-400">~$6.00</span>
                 </div>
               </div>
-            </SacredCard>
+            </PortalCard>
 
-            <SacredCard>
-              <Heading level={4} className="text-sm font-mono uppercase mb-4">
-                Exchange Rates
-              </Heading>
+            {/* Exchange Rates */}
+            <PortalCard header="Exchange Rates" hoverEffect={false}>
               <div className="space-y-2">
                 {SUPPORTED_CURRENCIES.map(curr => (
                   <div key={curr.code} className="flex justify-between font-mono text-sm">
-                    <span className="text-sacred-gray-600">{curr.code}/USD:</span>
-                    <MonoDisplay value={curr.rate} precision={4} />
+                    <span className="text-gray-500">{curr.code}/USD:</span>
+                    <span className="text-white">{curr.rate.toFixed(4)}</span>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-sacred-gray-500 mt-3 font-mono">
+              <p className="text-xs text-gray-600 mt-4 font-mono">
                 Last updated: {new Date().toLocaleTimeString()}
               </p>
-            </SacredCard>
+            </PortalCard>
 
-            <SacredCard>
-              <Heading level={4} className="text-sm font-mono uppercase mb-4">
-                Compliance Check
-              </Heading>
+            {/* Compliance Check */}
+            <PortalCard header="Compliance Check" hoverEffect={false}>
               <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-600"></div>
-                  <span className="text-xs font-mono">KYC Verified</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-600"></div>
-                  <span className="text-xs font-mono">Sanctions Clear</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-600"></div>
-                  <span className="text-xs font-mono">Wallet Verified</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-600"></div>
-                  <span className="text-xs font-mono">Daily Limit OK</span>
-                </div>
+                {[
+                  { label: 'KYC Verified', status: 'success' as const },
+                  { label: 'Sanctions Clear', status: 'success' as const },
+                  { label: 'Wallet Verified', status: 'success' as const },
+                  { label: 'Daily Limit OK', status: 'success' as const },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center gap-2">
+                    <PortalStatusDot status={item.status} size="sm" />
+                    <span className="text-xs font-mono text-gray-300">{item.label}</span>
+                  </div>
+                ))}
               </div>
-            </SacredCard>
-          </div>
-        </SacredGrid>
+            </PortalCard>
+          </motion.div>
+        </div>
 
         {/* Recent Transactions */}
-        <div className="mt-8">
-          <SacredCard>
-            <Heading level={3} className="text-lg font-mono uppercase mb-4">
-              Recent Transactions
-            </Heading>
-            <div className="text-center py-12">
-              <p className="text-sm text-sacred-gray-500 font-mono">
-                No transactions yet. Execute your first {mode} operation above.
-              </p>
-            </div>
-          </SacredCard>
-        </div>
-      </div>
+        <motion.div variants={itemVariants} className="mt-8">
+          <PortalCard header="Recent Transactions" hoverEffect={false}>
+            <NoTransactionsEmptyState />
+          </PortalCard>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }
-
