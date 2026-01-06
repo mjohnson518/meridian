@@ -552,29 +552,24 @@ async fn verify_agent_api_key(
 }
 
 async fn get_daily_spent(pool: &PgPool, agent_id: &str) -> Result<Decimal, ApiError> {
-    // Fetch all transactions and sum in Rust to avoid type issues
-    let transactions = sqlx::query!(
+    // Use SQL SUM() to aggregate in the database for better performance
+    // COALESCE handles NULL (no transactions) case, returning '0'
+    let result = sqlx::query_scalar!(
         r#"
-        SELECT amount
+        SELECT COALESCE(SUM(amount::NUMERIC), 0)::TEXT as "total!"
         FROM agent_transactions
-        WHERE agent_id = $1 
+        WHERE agent_id = $1
         AND created_at > NOW() - INTERVAL '24 hours'
         AND status IN ('PENDING', 'COMPLETED')
         "#,
         agent_id
     )
-    .fetch_all(pool)
+    .fetch_one(pool)
     .await
     .map_err(|e| handle_db_error(e, "agents"))?;
 
-    let mut total = Decimal::ZERO;
-    for tx in transactions {
-        let amount = Decimal::from_str(&tx.amount)
-            .map_err(|_| ApiError::InternalError("Invalid amount in transaction".to_string()))?;
-        total += amount;
-    }
-
-    Ok(total)
+    Decimal::from_str(&result)
+        .map_err(|_| ApiError::InternalError("Invalid sum from database".to_string()))
 }
 
 fn generate_api_key() -> String {

@@ -4,10 +4,11 @@
 //! and rate limit headers for API responses.
 
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
-use actix_web::http::header::HeaderValue;
+use actix_web::http::header::{HeaderName, HeaderValue};
 use actix_web::{Error, HttpMessage};
 use std::future::{ready, Future, Ready};
 use std::pin::Pin;
+use std::sync::OnceLock;
 use std::task::{Context, Poll};
 use uuid::Uuid;
 
@@ -15,6 +16,15 @@ use uuid::Uuid;
 pub const CORRELATION_ID_HEADER: &str = "X-Correlation-ID";
 /// Alternative header name (also commonly used)
 pub const REQUEST_ID_HEADER: &str = "X-Request-ID";
+
+/// Pre-parsed header names to avoid runtime parsing failures
+/// SECURITY: MED-006 FIX - No unwrap() in production code
+fn correlation_id_header_name() -> &'static HeaderName {
+    static HEADER: OnceLock<HeaderName> = OnceLock::new();
+    HEADER.get_or_init(|| {
+        HeaderName::from_static("x-correlation-id")
+    })
+}
 
 /// Correlation ID stored in request extensions
 #[derive(Clone, Debug)]
@@ -109,9 +119,10 @@ where
             let mut res = fut.await?;
 
             // Add correlation ID to response headers
+            // SECURITY: MED-006 FIX - Use pre-parsed header name instead of unwrap()
             if let Ok(header_value) = HeaderValue::from_str(&correlation_id) {
                 res.headers_mut()
-                    .insert(CORRELATION_ID_HEADER.parse().unwrap(), header_value);
+                    .insert(correlation_id_header_name().clone(), header_value);
             }
 
             tracing::debug!(
@@ -307,6 +318,28 @@ pub const RATELIMIT_LIMIT_HEADER: &str = "X-RateLimit-Limit";
 pub const RATELIMIT_REMAINING_HEADER: &str = "X-RateLimit-Remaining";
 pub const RATELIMIT_RESET_HEADER: &str = "X-RateLimit-Reset";
 
+/// Pre-parsed rate limit header names to avoid runtime parsing failures
+/// SECURITY: MED-006 FIX - No unwrap() in production code
+fn ratelimit_limit_header_name() -> &'static HeaderName {
+    static HEADER: OnceLock<HeaderName> = OnceLock::new();
+    HEADER.get_or_init(|| HeaderName::from_static("x-ratelimit-limit"))
+}
+
+fn ratelimit_remaining_header_name() -> &'static HeaderName {
+    static HEADER: OnceLock<HeaderName> = OnceLock::new();
+    HEADER.get_or_init(|| HeaderName::from_static("x-ratelimit-remaining"))
+}
+
+fn ratelimit_reset_header_name() -> &'static HeaderName {
+    static HEADER: OnceLock<HeaderName> = OnceLock::new();
+    HEADER.get_or_init(|| HeaderName::from_static("x-ratelimit-reset"))
+}
+
+fn retry_after_header_name() -> &'static HeaderName {
+    static HEADER: OnceLock<HeaderName> = OnceLock::new();
+    HEADER.get_or_init(|| HeaderName::from_static("retry-after"))
+}
+
 /// Configuration for rate limit headers
 #[derive(Clone, Debug)]
 pub struct RateLimitConfig {
@@ -427,24 +460,25 @@ where
             let reset = window_start + window_secs as u64 - now;
 
             // Add rate limit headers
+            // SECURITY: MED-006 FIX - Use pre-parsed header names instead of unwrap()
             if let Ok(limit_val) = HeaderValue::from_str(&limit.to_string()) {
                 res.headers_mut()
-                    .insert(RATELIMIT_LIMIT_HEADER.parse().unwrap(), limit_val);
+                    .insert(ratelimit_limit_header_name().clone(), limit_val);
             }
             if let Ok(remaining_val) = HeaderValue::from_str(&remaining.to_string()) {
                 res.headers_mut()
-                    .insert(RATELIMIT_REMAINING_HEADER.parse().unwrap(), remaining_val);
+                    .insert(ratelimit_remaining_header_name().clone(), remaining_val);
             }
             if let Ok(reset_val) = HeaderValue::from_str(&reset.to_string()) {
                 res.headers_mut()
-                    .insert(RATELIMIT_RESET_HEADER.parse().unwrap(), reset_val);
+                    .insert(ratelimit_reset_header_name().clone(), reset_val);
             }
 
             // Add Retry-After header on 429 responses
             if res.status() == actix_web::http::StatusCode::TOO_MANY_REQUESTS {
                 if let Ok(retry_val) = HeaderValue::from_str(&reset.to_string()) {
                     res.headers_mut()
-                        .insert("Retry-After".parse().unwrap(), retry_val);
+                        .insert(retry_after_header_name().clone(), retry_val);
                 }
             }
 

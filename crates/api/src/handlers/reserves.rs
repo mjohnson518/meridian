@@ -173,17 +173,13 @@ pub async fn get_reserves(
                 hundred // No supply means fully backed by default
             };
 
-            // Convert to f64 only for JSON response display fields (not calculations)
-            let display_reserve_value = reserve_value.to_string().parse::<f64>().unwrap_or(0.0);
-            let display_ratio = ratio.to_string().parse::<f64>().unwrap_or(100.0);
-
             let response = ReserveData {
                 total_value: format!("{:.2}", reserve_value),
                 reserve_ratio: format!("{:.2}", ratio),
                 trend: "0.00".to_string(), // Would need historical data
                 active_currencies: 1,
                 bond_holdings: vec![], // Real holdings would come from custody integration
-                history: generate_history_placeholder(display_reserve_value, display_ratio),
+                history: generate_history_placeholder(reserve_value, ratio),
                 currencies: vec![
                     CurrencyBreakdown {
                         currency: currency_code.clone(),
@@ -205,9 +201,13 @@ pub async fn get_reserves(
             );
 
             // Fallback to demo data with clear warning
+            // SECURITY: Per CLAUDE.md - Use Decimal for all financial values
+            let demo_value = Decimal::from_str("10042250.00").unwrap_or(Decimal::ZERO);
+            let demo_ratio = Decimal::from_str("100.42").unwrap_or(Decimal::ONE_HUNDRED);
+
             let response = ReserveData {
-                total_value: "10042250.00".to_string(),
-                reserve_ratio: "100.42".to_string(),
+                total_value: format!("{:.2}", demo_value),
+                reserve_ratio: format!("{:.2}", demo_ratio),
                 trend: "0.42".to_string(),
                 active_currencies: 4,
                 bond_holdings: vec![
@@ -222,15 +222,7 @@ pub async fn get_reserves(
                         rating: "AAA".to_string(),
                     }
                 ],
-                history: (0..30).map(|i| {
-                    let ratio_val = 100.0 + (i as f64 / 10.0).sin();
-                    let value_val = 10000000.0 + (i as f64 * 1000.0);
-                    HistoryPoint {
-                        timestamp: (Utc::now() - Duration::days(29 - i)).timestamp() * 1000,
-                        ratio: format!("{:.2}", ratio_val),
-                        total_value: format!("{:.2}", value_val),
-                    }
-                }).collect(),
+                history: generate_history_placeholder(demo_value, demo_ratio),
                 currencies: vec![
                     CurrencyBreakdown {
                         currency: currency_code.clone(),
@@ -271,14 +263,21 @@ async fn fetch_real_reserves(
 }
 
 /// Generate placeholder history data (for when we have real current data but no history)
-/// SECURITY: Per CLAUDE.md - Uses f64 only for display formatting, not financial calculations
-fn generate_history_placeholder(current_value: f64, current_ratio: f64) -> Vec<HistoryPoint> {
+/// SECURITY: Per CLAUDE.md - Uses Decimal throughout, no floating-point for financial values
+fn generate_history_placeholder(current_value: Decimal, current_ratio: Decimal) -> Vec<HistoryPoint> {
     // Generate 30 days of history with minor variations around current values
     // Note: These are display-only placeholder values, not used for financial calculations
+    // Variance is kept minimal (±0.5%) for visual consistency
+    let variance_step = Decimal::new(5, 3); // 0.005 per day variance factor
+    let hundred = Decimal::ONE_HUNDRED;
+
     (0..30).map(|i| {
-        let variance = (i as f64 / 100.0).sin() * 0.5;
-        let ratio_val = current_ratio + variance;
-        let value_val = current_value * (1.0 + variance / 100.0);
+        // Simple linear variance pattern: -0.5% to +0.5% based on day
+        let day_factor = Decimal::from(i) - Decimal::from(15i64);
+        let variance_percent = day_factor * variance_step; // -0.075% to +0.075%
+        let ratio_val = current_ratio + variance_percent;
+        let value_multiplier = Decimal::ONE + (variance_percent / hundred);
+        let value_val = current_value * value_multiplier;
         HistoryPoint {
             timestamp: (Utc::now() - Duration::days(29 - i)).timestamp() * 1000,
             ratio: format!("{:.2}", ratio_val),
