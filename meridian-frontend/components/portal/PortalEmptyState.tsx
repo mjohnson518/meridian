@@ -26,15 +26,15 @@ export function PortalEmptyState({
   return (
     <div className={cn("text-center py-12 px-4", className)}>
       {icon && (
-        <div className="flex justify-center mb-4 text-gray-600">
+        <div className="flex justify-center mb-4 text-gray-400 dark:text-gray-600">
           {icon}
         </div>
       )}
-      <h3 className="text-sm font-mono uppercase tracking-wider text-gray-400 mb-2">
+      <h3 className="text-sm font-mono uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
         {title}
       </h3>
       {description && (
-        <p className="text-xs text-gray-500 max-w-sm mx-auto mb-6">
+        <p className="text-xs text-gray-500 dark:text-gray-500 max-w-sm mx-auto mb-6">
           {description}
         </p>
       )}

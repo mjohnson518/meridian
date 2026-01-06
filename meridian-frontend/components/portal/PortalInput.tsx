@@ -20,7 +20,7 @@ export const PortalInput = forwardRef<HTMLInputElement, PortalInputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="block text-xs font-mono uppercase tracking-wider text-gray-400 mb-2"
+            className="block text-xs font-mono uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2"
           >
             {label}
             {required && <span className="text-red-500 ml-1">*</span>}
@@ -31,14 +31,21 @@ export const PortalInput = forwardRef<HTMLInputElement, PortalInputProps>(
           id={inputId}
           className={cn(
             "w-full px-4 py-3 rounded-lg",
-            "bg-white/[0.08] backdrop-blur-sm",
-            "border border-white/30",
-            "text-white placeholder-gray-400",
+            // Light mode: light gray background
+            "bg-gray-50 border-gray-300",
+            // Dark mode: solid dark background for visibility
+            "dark:bg-gray-800/90 dark:border-gray-600",
+            "border backdrop-blur-sm",
+            // Text colors
+            "text-gray-900 dark:text-white",
+            "placeholder-gray-500 dark:placeholder-gray-400",
             "font-mono text-sm",
             "transition-all duration-200",
-            "focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20",
+            // Focus states
+            "focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30",
+            "dark:focus:border-emerald-500/60 dark:focus:ring-emerald-500/20",
             "disabled:opacity-50 disabled:cursor-not-allowed",
-            error && "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20",
+            error && "border-red-500 dark:border-red-500/50 focus:border-red-500 focus:ring-red-500/30",
             className
           )}
           aria-invalid={!!error}
@@ -79,7 +86,7 @@ export const PortalTextarea = forwardRef<HTMLTextAreaElement, PortalTextareaProp
         {label && (
           <label
             htmlFor={textareaId}
-            className="block text-xs font-mono uppercase tracking-wider text-gray-400 mb-2"
+            className="block text-xs font-mono uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2"
           >
             {label}
             {required && <span className="text-red-500 ml-1">*</span>}
@@ -91,15 +98,22 @@ export const PortalTextarea = forwardRef<HTMLTextAreaElement, PortalTextareaProp
           rows={rows}
           className={cn(
             "w-full px-4 py-3 rounded-lg",
-            "bg-white/[0.08] backdrop-blur-sm",
-            "border border-white/30",
-            "text-white placeholder-gray-400",
+            // Light mode: light gray background
+            "bg-gray-50 border-gray-300",
+            // Dark mode: solid dark background for visibility
+            "dark:bg-gray-800/90 dark:border-gray-600",
+            "border backdrop-blur-sm",
+            // Text colors
+            "text-gray-900 dark:text-white",
+            "placeholder-gray-500 dark:placeholder-gray-400",
             "font-mono text-sm",
             "transition-all duration-200",
-            "focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20",
+            // Focus states
+            "focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30",
+            "dark:focus:border-emerald-500/60 dark:focus:ring-emerald-500/20",
             "disabled:opacity-50 disabled:cursor-not-allowed",
             "resize-none",
-            error && "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20",
+            error && "border-red-500 dark:border-red-500/50 focus:border-red-500 focus:ring-red-500/30",
             className
           )}
           aria-invalid={!!error}
@@ -135,7 +149,7 @@ export const PortalAmountInput = forwardRef<HTMLInputElement, PortalAmountInputP
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-xs font-mono uppercase tracking-wider text-gray-400 mb-2">
+          <label className="block text-xs font-mono uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-2">
             {label}
           </label>
         )}
@@ -145,14 +159,21 @@ export const PortalAmountInput = forwardRef<HTMLInputElement, PortalAmountInputP
             type="number"
             className={cn(
               "flex-1 px-6 py-4 rounded-lg",
-              "bg-white/[0.08] backdrop-blur-sm",
-              "border border-white/30",
-              "text-white placeholder-gray-400",
+              // Light mode
+              "bg-gray-50 border-gray-300",
+              // Dark mode: solid dark background for visibility
+              "dark:bg-gray-800/90 dark:border-gray-600",
+              "border backdrop-blur-sm",
+              // Text colors
+              "text-gray-900 dark:text-white",
+              "placeholder-gray-500 dark:placeholder-gray-400",
               "font-mono text-3xl text-right",
               "transition-all duration-200",
-              "focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20",
+              // Focus states
+              "focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30",
+              "dark:focus:border-emerald-500/60 dark:focus:ring-emerald-500/20",
               "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-              error && "border-red-500/50",
+              error && "border-red-500 dark:border-red-500/50",
               className
             )}
             {...props}
@@ -163,16 +184,21 @@ export const PortalAmountInput = forwardRef<HTMLInputElement, PortalAmountInputP
               onChange={(e) => onCurrencyChange(e.target.value)}
               className={cn(
                 "px-4 py-2 rounded-lg",
-                "bg-white/[0.08] backdrop-blur-sm",
-                "border border-white/30",
-                "text-white",
+                // Light mode
+                "bg-gray-50 border-gray-300",
+                // Dark mode
+                "dark:bg-gray-800/90 dark:border-gray-600",
+                "border backdrop-blur-sm",
+                // Text
+                "text-gray-900 dark:text-white",
                 "font-mono text-sm",
                 "transition-all duration-200",
-                "focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20"
+                "focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30",
+                "dark:focus:border-emerald-500/60 dark:focus:ring-emerald-500/20"
               )}
             >
               {currencies.map((c) => (
-                <option key={c.code} value={c.code} className="bg-[#0B0C10]">
+                <option key={c.code} value={c.code} className="bg-white dark:bg-gray-900">
                   {c.code}
                 </option>
               ))}

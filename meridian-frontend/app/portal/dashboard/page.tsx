@@ -51,14 +51,14 @@ function DashboardContent() {
         {user.kycStatus !== KYCStatus.APPROVED && (
           <motion.div
             variants={itemVariants}
-            className="mb-8 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30"
+            className="mb-8 p-4 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30"
           >
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-mono text-sm uppercase tracking-wider text-amber-400 mb-1">
+                <h3 className="font-mono text-sm uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">
                   KYC Verification Required
                 </h3>
-                <p className="text-xs text-amber-300/70">
+                <p className="text-xs text-amber-700/70 dark:text-amber-300/70">
                   {user.kycStatus === KYCStatus.NOT_STARTED &&
                     'Complete KYC verification to access mint/burn operations.'}
                   {user.kycStatus === KYCStatus.IN_PROGRESS &&
@@ -83,11 +83,11 @@ function DashboardContent() {
         {/* Welcome Section */}
         <motion.div variants={itemVariants} className="mb-8">
           <h1 className="text-4xl font-heading font-bold mb-2">
-            <span className="bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-gray-900 via-gray-700 to-gray-500 dark:from-white dark:via-gray-200 dark:to-gray-400 bg-clip-text text-transparent">
               Welcome back, {user.email.split('@')[0]}
             </span>
           </h1>
-          <p className="text-gray-500">
+          <p className="text-gray-600 dark:text-gray-500">
             Manage your multi-currency stablecoin operations
           </p>
         </motion.div>
@@ -198,30 +198,30 @@ function DashboardContent() {
           <PortalCard header="Account Information" hoverEffect={false}>
             <div className="space-y-4">
               <div>
-                <span className="text-xs font-mono uppercase tracking-wider text-gray-500 block mb-1">
+                <span className="text-xs font-mono uppercase tracking-wider text-gray-500 dark:text-gray-500 block mb-1">
                   Organization
                 </span>
-                <span className="text-sm text-white">{user.organization}</span>
+                <span className="text-sm text-gray-900 dark:text-white">{user.organization}</span>
               </div>
               <div>
-                <span className="text-xs font-mono uppercase tracking-wider text-gray-500 block mb-1">
+                <span className="text-xs font-mono uppercase tracking-wider text-gray-500 dark:text-gray-500 block mb-1">
                   Role
                 </span>
-                <span className="text-sm text-white">{user.role}</span>
+                <span className="text-sm text-gray-900 dark:text-white">{user.role}</span>
               </div>
               <div>
-                <span className="text-xs font-mono uppercase tracking-wider text-gray-500 block mb-1">
+                <span className="text-xs font-mono uppercase tracking-wider text-gray-500 dark:text-gray-500 block mb-1">
                   Wallet Address
                 </span>
-                <span className="text-xs font-mono text-gray-400 break-all">
+                <span className="text-xs font-mono text-gray-600 dark:text-gray-400 break-all">
                   {user.walletAddress || 'Not connected'}
                 </span>
               </div>
               <div>
-                <span className="text-xs font-mono uppercase tracking-wider text-gray-500 block mb-1">
+                <span className="text-xs font-mono uppercase tracking-wider text-gray-500 dark:text-gray-500 block mb-1">
                   Member Since
                 </span>
-                <span className="text-sm text-white">
+                <span className="text-sm text-gray-900 dark:text-white">
                   {new Date(user.createdAt).toLocaleDateString()}
                 </span>
               </div>

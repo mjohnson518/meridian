@@ -21,24 +21,24 @@ interface PortalMetricCardProps {
 
 const statusColors: Record<MetricStatus, { border: string; glow: string; text: string }> = {
   healthy: {
-    border: 'border-emerald-500/30',
-    glow: 'shadow-[0_0_20px_-5px_rgba(16,185,129,0.3)]',
-    text: 'text-emerald-400',
+    border: 'border-emerald-200 dark:border-emerald-500/30',
+    glow: 'shadow-emerald-500/10 dark:shadow-[0_0_20px_-5px_rgba(16,185,129,0.3)]',
+    text: 'text-emerald-600 dark:text-emerald-400',
   },
   warning: {
-    border: 'border-amber-500/30',
-    glow: 'shadow-[0_0_20px_-5px_rgba(245,158,11,0.3)]',
-    text: 'text-amber-400',
+    border: 'border-amber-200 dark:border-amber-500/30',
+    glow: 'shadow-amber-500/10 dark:shadow-[0_0_20px_-5px_rgba(245,158,11,0.3)]',
+    text: 'text-amber-600 dark:text-amber-400',
   },
   critical: {
-    border: 'border-red-500/30',
-    glow: 'shadow-[0_0_20px_-5px_rgba(239,68,68,0.3)]',
-    text: 'text-red-400',
+    border: 'border-red-200 dark:border-red-500/30',
+    glow: 'shadow-red-500/10 dark:shadow-[0_0_20px_-5px_rgba(239,68,68,0.3)]',
+    text: 'text-red-600 dark:text-red-400',
   },
   neutral: {
-    border: 'border-white/10',
+    border: 'border-gray-200 dark:border-white/10',
     glow: '',
-    text: 'text-gray-400',
+    text: 'text-gray-500 dark:text-gray-400',
   },
 };
 
@@ -92,28 +92,32 @@ export function PortalMetricCard({
     <motion.div
       className={cn(
         "relative overflow-hidden rounded-2xl p-6",
-        "bg-white/[0.02] backdrop-blur-xl",
-        "border",
+        // Light mode: white background
+        "bg-white",
+        // Dark mode: subtle dark background
+        "dark:bg-gray-900/80",
+        "backdrop-blur-xl",
+        "border shadow-sm",
         statusStyle.border,
         statusStyle.glow,
         "transition-all duration-300",
-        "hover:bg-white/[0.04]",
+        "hover:bg-gray-50 dark:hover:bg-gray-900",
         className
       )}
       whileHover={{ y: -2 }}
       transition={{ duration: 0.2 }}
     >
-      {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
+      {/* Gradient overlay - dark mode only */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none hidden dark:block" />
 
       <div className="relative z-10">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <span className="text-xs font-mono uppercase tracking-wider text-gray-500">
+          <span className="text-xs font-mono uppercase tracking-wider text-gray-500 dark:text-gray-500">
             {label}
           </span>
           {icon && (
-            <div className={cn("p-2 rounded-lg bg-white/5", statusStyle.text)}>
+            <div className={cn("p-2 rounded-lg bg-gray-100 dark:bg-white/5", statusStyle.text)}>
               {icon}
             </div>
           )}
@@ -122,7 +126,7 @@ export function PortalMetricCard({
         {/* Value */}
         <div className="flex items-end justify-between">
           <motion.div
-            className="font-mono text-3xl font-bold text-white tabular-nums"
+            className="font-mono text-3xl font-bold text-gray-900 dark:text-white tabular-nums"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
@@ -135,8 +139,8 @@ export function PortalMetricCard({
             <div
               className={cn(
                 "flex items-center gap-1 text-xs font-mono",
-                trend === 'up' && "text-emerald-400",
-                trend === 'down' && "text-red-400",
+                trend === 'up' && "text-emerald-600 dark:text-emerald-400",
+                trend === 'down' && "text-red-600 dark:text-red-400",
                 trend === 'neutral' && "text-gray-500"
               )}
             >

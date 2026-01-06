@@ -39,17 +39,33 @@ const itemVariants = {
 
 const inputClasses = cn(
   "w-full px-4 py-3 rounded-xl font-mono text-sm",
-  "bg-white/[0.08] border border-white/30",
-  "text-white placeholder-gray-300",
-  "focus:outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/30",
+  // Light mode
+  "bg-gray-50 border-gray-300",
+  // Dark mode - solid dark background for visibility
+  "dark:bg-gray-800/90 dark:border-gray-600",
+  "border",
+  // Text colors
+  "text-gray-900 dark:text-white",
+  "placeholder-gray-500 dark:placeholder-gray-400",
+  // Focus states
+  "focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30",
+  "dark:focus:border-emerald-500/60 dark:focus:ring-emerald-500/20",
   "transition-all duration-200"
 );
 
 const inputErrorClasses = cn(
   "w-full px-4 py-3 rounded-xl font-mono text-sm",
-  "bg-red-500/15 border border-red-500/50",
-  "text-white placeholder-gray-300",
-  "focus:outline-none focus:border-red-500/60 focus:ring-2 focus:ring-red-500/30",
+  // Light mode
+  "bg-red-50 border-red-400",
+  // Dark mode
+  "dark:bg-red-500/15 dark:border-red-500/50",
+  "border",
+  // Text colors
+  "text-gray-900 dark:text-white",
+  "placeholder-gray-500 dark:placeholder-gray-400",
+  // Focus states
+  "focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/30",
+  "dark:focus:border-red-500/60 dark:focus:ring-red-500/20",
   "transition-all duration-200"
 );
 
@@ -89,19 +105,28 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#050608] relative overflow-hidden">
-      {/* Background Grid */}
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 relative overflow-hidden transition-colors duration-300">
+      {/* Background Grid - Dark mode */}
       <div
-        className="fixed inset-0 pointer-events-none opacity-30"
+        className="fixed inset-0 pointer-events-none opacity-30 hidden dark:block"
         style={{
           backgroundImage: `linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)`,
           backgroundSize: '24px 24px',
           maskImage: 'radial-gradient(ellipse at center, black 0%, transparent 70%)',
         }}
       />
+      {/* Background Grid - Light mode */}
+      <div
+        className="fixed inset-0 pointer-events-none opacity-50 dark:hidden"
+        style={{
+          backgroundImage: `linear-gradient(rgba(0,0,0,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.02) 1px, transparent 1px)`,
+          backgroundSize: '24px 24px',
+          maskImage: 'radial-gradient(ellipse at center, black 0%, transparent 70%)',
+        }}
+      />
 
       {/* Decorative glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-emerald-500/5 dark:bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
 
       <motion.div
         className="w-full max-w-md px-6 relative z-10"
@@ -116,7 +141,7 @@ export default function LoginPage() {
               MERIDIAN
             </span>
           </h1>
-          <p className="text-xs text-gray-500 font-mono uppercase tracking-[0.3em]">
+          <p className="text-xs text-gray-500 dark:text-gray-500 font-mono uppercase tracking-[0.3em]">
             Institutional Portal
           </p>
         </motion.div>
@@ -129,7 +154,7 @@ export default function LoginPage() {
               <div>
                 <label
                   htmlFor="email"
-                  className="text-xs font-mono uppercase tracking-wider text-gray-400 block mb-2"
+                  className="text-xs font-mono uppercase tracking-wider text-gray-600 dark:text-gray-400 block mb-2"
                 >
                   Email Address
                 </label>
@@ -158,7 +183,7 @@ export default function LoginPage() {
               <div>
                 <label
                   htmlFor="password"
-                  className="text-xs font-mono uppercase tracking-wider text-gray-400 block mb-2"
+                  className="text-xs font-mono uppercase tracking-wider text-gray-600 dark:text-gray-400 block mb-2"
                 >
                   Password
                 </label>
@@ -188,10 +213,10 @@ export default function LoginPage() {
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="p-4 rounded-xl bg-red-500/10 border border-red-500/30"
+                  className="p-4 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30"
                   role="alert"
                 >
-                  <p className="text-xs font-mono text-red-400">{error}</p>
+                  <p className="text-xs font-mono text-red-600 dark:text-red-400">{error}</p>
                 </motion.div>
               )}
 
@@ -214,12 +239,12 @@ export default function LoginPage() {
             </form>
 
             {/* Register Link */}
-            <div className="mt-6 pt-6 border-t border-white/5">
-              <p className="text-xs text-gray-500 text-center font-mono">
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700/50">
+              <p className="text-xs text-gray-500 dark:text-gray-500 text-center font-mono">
                 Don't have an account?{' '}
                 <a
                   href="/portal/register"
-                  className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 dark:hover:text-emerald-300 transition-colors"
                 >
                   Register
                 </a>
@@ -253,7 +278,7 @@ export default function LoginPage() {
         <motion.div variants={itemVariants} className="mt-6 text-center">
           <a
             href="/"
-            className="text-xs font-mono text-gray-600 hover:text-gray-400 transition-colors"
+            className="text-xs font-mono text-gray-500 dark:text-gray-600 hover:text-gray-700 dark:hover:text-gray-400 transition-colors"
           >
             ← Back to Home
           </a>

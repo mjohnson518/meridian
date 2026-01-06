@@ -57,37 +57,54 @@ export function PortalButton({
     "inline-flex items-center justify-center gap-2",
     "font-medium rounded-full",
     "transition-all duration-200",
-    "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#050608]",
+    "focus:outline-none focus:ring-2 focus:ring-offset-2",
+    "focus:ring-offset-white dark:focus:ring-offset-gray-950",
     "disabled:opacity-50 disabled:cursor-not-allowed"
   );
 
   const variantClasses = {
     primary: cn(
       "bg-gradient-to-r from-emerald-500 to-teal-500 text-white",
-      "shadow-[0_0_20px_-5px_rgba(16,185,129,0.5)]",
-      "hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.6)]",
+      "shadow-lg shadow-emerald-500/25",
+      "hover:shadow-xl hover:shadow-emerald-500/30",
+      "dark:shadow-[0_0_20px_-5px_rgba(16,185,129,0.5)]",
+      "dark:hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.6)]",
       "focus:ring-emerald-500"
     ),
     secondary: cn(
-      "bg-white/5 text-white border border-white/10",
-      "hover:bg-white/10 hover:border-emerald-500/30",
+      // Light mode: visible gray background
+      "bg-gray-100 text-gray-700 border border-gray-200",
+      "hover:bg-gray-200 hover:border-emerald-500/30",
+      // Dark mode: solid dark background for visibility
+      "dark:bg-gray-800/80 dark:text-white dark:border-gray-700",
+      "dark:hover:bg-gray-700/80 dark:hover:border-emerald-500/30",
       "focus:ring-emerald-500"
     ),
     outline: cn(
-      "bg-transparent text-white border border-white/20",
-      "hover:bg-white/5 hover:border-emerald-400/50",
-      "hover:shadow-[0_0_20px_-5px_rgba(16,185,129,0.2)]",
+      // Light mode
+      "bg-transparent text-gray-700 border border-gray-300",
+      "hover:bg-gray-50 hover:border-emerald-500/50",
+      // Dark mode: more visible border
+      "dark:text-white dark:border-gray-600",
+      "dark:hover:bg-gray-800/50 dark:hover:border-emerald-400/50",
+      "dark:hover:shadow-[0_0_20px_-5px_rgba(16,185,129,0.2)]",
       "focus:ring-emerald-500"
     ),
     ghost: cn(
-      "bg-transparent text-gray-400",
-      "hover:bg-white/5 hover:text-white",
+      // Light mode
+      "bg-transparent text-gray-600",
+      "hover:bg-gray-100 hover:text-gray-900",
+      // Dark mode
+      "dark:text-gray-400",
+      "dark:hover:bg-gray-800/50 dark:hover:text-white",
       "focus:ring-gray-500"
     ),
     danger: cn(
       "bg-gradient-to-r from-red-500 to-rose-500 text-white",
-      "shadow-[0_0_20px_-5px_rgba(239,68,68,0.5)]",
-      "hover:shadow-[0_0_30px_-5px_rgba(239,68,68,0.6)]",
+      "shadow-lg shadow-red-500/25",
+      "hover:shadow-xl hover:shadow-red-500/30",
+      "dark:shadow-[0_0_20px_-5px_rgba(239,68,68,0.5)]",
+      "dark:hover:shadow-[0_0_30px_-5px_rgba(239,68,68,0.6)]",
       "focus:ring-red-500"
     ),
   };

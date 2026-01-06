@@ -36,13 +36,17 @@ export function PortalCard({
     <motion.div
       className={cn(
         "relative overflow-hidden rounded-2xl",
-        "bg-white/[0.05] backdrop-blur-xl",
-        "border border-white/20",
+        // Light mode: white bg, gray border
+        "bg-white border-gray-200",
+        // Dark mode: solid dark bg for visibility
+        "dark:bg-gray-900/90 dark:border-gray-700/50",
+        "border backdrop-blur-sm",
         "transition-all duration-300 ease-out",
         hoverEffect && [
-          "hover:border-emerald-500/30",
-          "hover:bg-white/[0.08]",
-          "hover:shadow-[0_0_30px_-10px_rgba(16,185,129,0.2)]",
+          "hover:border-emerald-500/40",
+          "hover:shadow-lg",
+          "dark:hover:bg-gray-900",
+          "dark:hover:shadow-[0_0_30px_-10px_rgba(16,185,129,0.3)]",
         ],
         className
       )}
@@ -50,19 +54,19 @@ export function PortalCard({
       transition={{ duration: 0.2 }}
       {...props}
     >
-      {/* Subtle gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
+      {/* Subtle gradient overlay - only in dark mode */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none dark:block hidden" />
 
       {/* Content */}
       <div className="relative z-10">
         {header && (
           <div className={cn(
             "flex items-center justify-between",
-            "border-b border-white/5",
+            "border-b border-gray-100 dark:border-gray-700/50",
             padding !== 'none' ? paddingClasses[padding] : 'p-6',
             "pb-4"
           )}>
-            <h3 className="text-sm font-mono uppercase tracking-wider text-gray-300">
+            <h3 className="text-sm font-mono uppercase tracking-wider text-gray-600 dark:text-gray-300">
               {header}
             </h3>
             {headerAction}
@@ -91,24 +95,27 @@ export function PortalCardStatic({
     <div
       className={cn(
         "relative overflow-hidden rounded-2xl",
-        "bg-white/[0.05] backdrop-blur-xl",
-        "border border-white/20",
+        // Light mode: white bg, gray border
+        "bg-white border-gray-200",
+        // Dark mode: solid dark bg for visibility
+        "dark:bg-gray-900/90 dark:border-gray-700/50",
+        "border backdrop-blur-sm",
         className
       )}
     >
-      {/* Subtle gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
+      {/* Subtle gradient overlay - only in dark mode */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none dark:block hidden" />
 
       {/* Content */}
       <div className="relative z-10">
         {header && (
           <div className={cn(
             "flex items-center justify-between",
-            "border-b border-white/5",
+            "border-b border-gray-100 dark:border-gray-700/50",
             padding !== 'none' ? paddingClasses[padding] : 'p-6',
             "pb-4"
           )}>
-            <h3 className="text-sm font-mono uppercase tracking-wider text-gray-300">
+            <h3 className="text-sm font-mono uppercase tracking-wider text-gray-600 dark:text-gray-300">
               {header}
             </h3>
             {headerAction}
