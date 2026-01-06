@@ -39,17 +39,17 @@ const itemVariants = {
 
 const inputClasses = cn(
   "w-full px-4 py-3 rounded-xl font-mono text-sm",
-  "bg-white/[0.02] border border-white/10",
-  "text-white placeholder-gray-600",
-  "focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20",
+  "bg-white/[0.08] border border-white/30",
+  "text-white placeholder-gray-300",
+  "focus:outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/30",
   "transition-all duration-200"
 );
 
 const inputErrorClasses = cn(
   "w-full px-4 py-3 rounded-xl font-mono text-sm",
-  "bg-red-500/5 border border-red-500/30",
-  "text-white placeholder-gray-600",
-  "focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20",
+  "bg-red-500/15 border border-red-500/50",
+  "text-white placeholder-gray-300",
+  "focus:outline-none focus:border-red-500/60 focus:ring-2 focus:ring-red-500/30",
   "transition-all duration-200"
 );
 

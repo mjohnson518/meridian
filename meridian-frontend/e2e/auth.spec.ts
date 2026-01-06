@@ -11,8 +11,8 @@ test.describe('Authentication Flow', () => {
       const emailInput = page.getByRole('textbox', { name: /email/i });
       await expect(emailInput).toBeVisible();
 
-      // Should have password input
-      const passwordInput = page.getByPlaceholder(/password/i);
+      // Should have password input (select by type since placeholder is bullet points)
+      const passwordInput = page.locator('input[type="password"]');
       await expect(passwordInput).toBeVisible();
 
       // Should have login button
@@ -38,7 +38,7 @@ test.describe('Authentication Flow', () => {
 
     test('shows error for invalid credentials', async ({ page }) => {
       const emailInput = page.getByRole('textbox', { name: /email/i });
-      const passwordInput = page.getByPlaceholder(/password/i);
+      const passwordInput = page.locator('input[type="password"]');
       const loginButton = page.getByRole('button', { name: /sign in|log in|login/i });
 
       await emailInput.fill('test@example.com');

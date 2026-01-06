@@ -31,9 +31,9 @@ export const PortalInput = forwardRef<HTMLInputElement, PortalInputProps>(
           id={inputId}
           className={cn(
             "w-full px-4 py-3 rounded-lg",
-            "bg-white/[0.02] backdrop-blur-sm",
-            "border border-white/10",
-            "text-white placeholder-gray-500",
+            "bg-white/[0.08] backdrop-blur-sm",
+            "border border-white/30",
+            "text-white placeholder-gray-400",
             "font-mono text-sm",
             "transition-all duration-200",
             "focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20",
@@ -91,9 +91,9 @@ export const PortalTextarea = forwardRef<HTMLTextAreaElement, PortalTextareaProp
           rows={rows}
           className={cn(
             "w-full px-4 py-3 rounded-lg",
-            "bg-white/[0.02] backdrop-blur-sm",
-            "border border-white/10",
-            "text-white placeholder-gray-500",
+            "bg-white/[0.08] backdrop-blur-sm",
+            "border border-white/30",
+            "text-white placeholder-gray-400",
             "font-mono text-sm",
             "transition-all duration-200",
             "focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20",
@@ -145,9 +145,9 @@ export const PortalAmountInput = forwardRef<HTMLInputElement, PortalAmountInputP
             type="number"
             className={cn(
               "flex-1 px-6 py-4 rounded-lg",
-              "bg-white/[0.02] backdrop-blur-sm",
-              "border border-white/10",
-              "text-white placeholder-gray-500",
+              "bg-white/[0.08] backdrop-blur-sm",
+              "border border-white/30",
+              "text-white placeholder-gray-400",
               "font-mono text-3xl text-right",
               "transition-all duration-200",
               "focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20",
@@ -163,8 +163,8 @@ export const PortalAmountInput = forwardRef<HTMLInputElement, PortalAmountInputP
               onChange={(e) => onCurrencyChange(e.target.value)}
               className={cn(
                 "px-4 py-2 rounded-lg",
-                "bg-white/[0.02] backdrop-blur-sm",
-                "border border-white/10",
+                "bg-white/[0.08] backdrop-blur-sm",
+                "border border-white/30",
                 "text-white",
                 "font-mono text-sm",
                 "transition-all duration-200",

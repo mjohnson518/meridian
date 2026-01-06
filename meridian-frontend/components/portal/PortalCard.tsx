@@ -36,12 +36,12 @@ export function PortalCard({
     <motion.div
       className={cn(
         "relative overflow-hidden rounded-2xl",
-        "bg-white/[0.02] backdrop-blur-xl",
-        "border border-white/10",
+        "bg-white/[0.05] backdrop-blur-xl",
+        "border border-white/20",
         "transition-all duration-300 ease-out",
         hoverEffect && [
           "hover:border-emerald-500/30",
-          "hover:bg-white/[0.04]",
+          "hover:bg-white/[0.08]",
           "hover:shadow-[0_0_30px_-10px_rgba(16,185,129,0.2)]",
         ],
         className
@@ -91,8 +91,8 @@ export function PortalCardStatic({
     <div
       className={cn(
         "relative overflow-hidden rounded-2xl",
-        "bg-white/[0.02] backdrop-blur-xl",
-        "border border-white/10",
+        "bg-white/[0.05] backdrop-blur-xl",
+        "border border-white/20",
         className
       )}
     >
