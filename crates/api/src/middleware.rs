@@ -487,6 +487,351 @@ where
     }
 }
 
+// ============================================================================
+// HIGH-001: CSRF Protection Middleware (Origin/Referer Validation)
+// ============================================================================
+
+/// Header names for CSRF protection
+pub const ORIGIN_HEADER: &str = "Origin";
+pub const REFERER_HEADER: &str = "Referer";
+
+/// Pre-parsed header names for CSRF protection
+fn csrf_origin_header_name() -> &'static HeaderName {
+    static HEADER: OnceLock<HeaderName> = OnceLock::new();
+    HEADER.get_or_init(|| HeaderName::from_static("origin"))
+}
+
+fn csrf_referer_header_name() -> &'static HeaderName {
+    static HEADER: OnceLock<HeaderName> = OnceLock::new();
+    HEADER.get_or_init(|| HeaderName::from_static("referer"))
+}
+
+/// Configuration for CSRF protection
+#[derive(Clone, Debug)]
+pub struct CsrfConfig {
+    /// Allowed origins (e.g., ["https://meridian.example.com"])
+    pub allowed_origins: Vec<String>,
+    /// Whether to enforce in development (default: false)
+    pub enforce_in_dev: bool,
+}
+
+impl Default for CsrfConfig {
+    fn default() -> Self {
+        Self {
+            allowed_origins: vec![
+                "http://localhost:3000".to_string(),
+                "http://localhost:8080".to_string(),
+                "http://127.0.0.1:3000".to_string(),
+                "http://127.0.0.1:8080".to_string(),
+            ],
+            enforce_in_dev: false,
+        }
+    }
+}
+
+impl CsrfConfig {
+    /// Create config for production with specific allowed origins
+    pub fn production(origins: Vec<String>) -> Self {
+        Self {
+            allowed_origins: origins,
+            enforce_in_dev: true,
+        }
+    }
+}
+
+/// Middleware that validates Origin/Referer headers for state-changing requests.
+///
+/// This provides CSRF protection in addition to SameSite=Strict cookies:
+/// - Validates Origin header on POST/PUT/PATCH/DELETE requests
+/// - Falls back to Referer header if Origin is missing
+/// - Allows requests without either header for API clients
+///
+/// Defense-in-depth layer - primary protection is SameSite=Strict cookies.
+#[derive(Clone, Debug)]
+pub struct CsrfProtectionMiddleware {
+    config: CsrfConfig,
+}
+
+impl CsrfProtectionMiddleware {
+    /// Create with default configuration (localhost origins allowed)
+    pub fn new() -> Self {
+        Self {
+            config: CsrfConfig::default(),
+        }
+    }
+
+    /// Create with custom configuration
+    pub fn with_config(config: CsrfConfig) -> Self {
+        Self { config }
+    }
+}
+
+impl Default for CsrfProtectionMiddleware {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<S, B> Transform<S, ServiceRequest> for CsrfProtectionMiddleware
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Transform = CsrfProtectionService<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ready(Ok(CsrfProtectionService {
+            service,
+            config: self.config.clone(),
+        }))
+    }
+}
+
+/// The actual service that validates Origin/Referer headers
+pub struct CsrfProtectionService<S> {
+    service: S,
+    config: CsrfConfig,
+}
+
+impl<S, B> Service<ServiceRequest> for CsrfProtectionService<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
+    }
+
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        let method = req.method().clone();
+
+        // Only check state-changing methods
+        let is_state_changing = matches!(
+            method.as_str(),
+            "POST" | "PUT" | "PATCH" | "DELETE"
+        );
+
+        if !is_state_changing {
+            // GET, HEAD, OPTIONS - safe methods, allow through
+            return Box::pin(self.service.call(req));
+        }
+
+        // Check for development mode
+        let is_production = std::env::var("RUST_ENV")
+            .map(|v| v == "production")
+            .unwrap_or(false);
+
+        if !is_production && !self.config.enforce_in_dev {
+            // Skip validation in development
+            return Box::pin(self.service.call(req));
+        }
+
+        // Extract origin or referer
+        let origin = req
+            .headers()
+            .get(csrf_origin_header_name())
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+
+        let referer = req
+            .headers()
+            .get(csrf_referer_header_name())
+            .and_then(|v| v.to_str().ok())
+            .and_then(extract_origin_from_url);
+
+        let request_origin = origin.or(referer);
+        let allowed_origins = self.config.allowed_origins.clone();
+        let path = req.path().to_string();
+
+        // Allow requests without Origin/Referer (API clients, curl, etc.)
+        // SameSite=Strict cookies provide protection for browser requests
+        if request_origin.is_none() {
+            tracing::debug!(
+                path = %path,
+                method = %method,
+                "CSRF: No Origin/Referer header, allowing request (API client)"
+            );
+            return Box::pin(self.service.call(req));
+        }
+
+        let origin_str = request_origin.unwrap();
+        let is_allowed = allowed_origins.iter().any(|allowed| {
+            origin_str == *allowed || origin_str.starts_with(allowed)
+        });
+
+        if is_allowed {
+            tracing::debug!(
+                origin = %origin_str,
+                path = %path,
+                "CSRF: Origin validated"
+            );
+            Box::pin(self.service.call(req))
+        } else {
+            tracing::warn!(
+                origin = %origin_str,
+                path = %path,
+                "CSRF: Invalid origin rejected"
+            );
+            Box::pin(async {
+                Err(actix_web::error::ErrorForbidden("Invalid request origin"))
+            })
+        }
+    }
+}
+
+/// Extract origin (scheme + host) from a full URL
+fn extract_origin_from_url(url: &str) -> Option<String> {
+    // Parse URL and extract scheme://host:port
+    if let Ok(parsed) = url::Url::parse(url) {
+        let scheme = parsed.scheme();
+        let host = parsed.host_str()?;
+        let port = parsed.port();
+
+        match port {
+            Some(p) => Some(format!("{}://{}:{}", scheme, host, p)),
+            None => Some(format!("{}://{}", scheme, host)),
+        }
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod csrf_tests {
+    use super::*;
+    use actix_web::{test as actix_test, web, App, HttpResponse};
+
+    async fn post_handler() -> HttpResponse {
+        HttpResponse::Ok().body("OK")
+    }
+
+    async fn get_handler() -> HttpResponse {
+        HttpResponse::Ok().body("OK")
+    }
+
+    #[actix_web::test]
+    async fn test_allows_get_requests() {
+        let config = CsrfConfig {
+            allowed_origins: vec!["https://example.com".to_string()],
+            enforce_in_dev: true,
+        };
+        let app = actix_test::init_service(
+            App::new()
+                .wrap(CsrfProtectionMiddleware::with_config(config))
+                .route("/", web::get().to(get_handler)),
+        )
+        .await;
+
+        let req = actix_test::TestRequest::get().uri("/").to_request();
+        let resp = actix_test::call_service(&app, req).await;
+
+        assert!(resp.status().is_success());
+    }
+
+    #[actix_web::test]
+    async fn test_allows_valid_origin() {
+        std::env::set_var("RUST_ENV", "production");
+
+        let config = CsrfConfig {
+            allowed_origins: vec!["https://example.com".to_string()],
+            enforce_in_dev: true,
+        };
+        let app = actix_test::init_service(
+            App::new()
+                .wrap(CsrfProtectionMiddleware::with_config(config))
+                .route("/", web::post().to(post_handler)),
+        )
+        .await;
+
+        let req = actix_test::TestRequest::post()
+            .uri("/")
+            .insert_header(("Origin", "https://example.com"))
+            .to_request();
+        let resp = actix_test::call_service(&app, req).await;
+
+        std::env::remove_var("RUST_ENV");
+        assert!(resp.status().is_success());
+    }
+
+    #[actix_web::test]
+    async fn test_rejects_invalid_origin() {
+        std::env::set_var("RUST_ENV", "production");
+
+        let config = CsrfConfig {
+            allowed_origins: vec!["https://example.com".to_string()],
+            enforce_in_dev: true,
+        };
+        let app = actix_test::init_service(
+            App::new()
+                .wrap(CsrfProtectionMiddleware::with_config(config))
+                .route("/", web::post().to(post_handler)),
+        )
+        .await;
+
+        let req = actix_test::TestRequest::post()
+            .uri("/")
+            .insert_header(("Origin", "https://evil.com"))
+            .to_request();
+
+        // Use try_call_service since middleware returns an error
+        let resp = actix_test::try_call_service(&app, req).await;
+
+        std::env::remove_var("RUST_ENV");
+        // The middleware returns an error which results in 403
+        assert!(resp.is_err());
+    }
+
+    #[actix_web::test]
+    async fn test_allows_requests_without_origin_api_clients() {
+        std::env::set_var("RUST_ENV", "production");
+
+        let config = CsrfConfig {
+            allowed_origins: vec!["https://example.com".to_string()],
+            enforce_in_dev: true,
+        };
+        let app = actix_test::init_service(
+            App::new()
+                .wrap(CsrfProtectionMiddleware::with_config(config))
+                .route("/", web::post().to(post_handler)),
+        )
+        .await;
+
+        // API client (curl, etc.) without Origin header
+        let req = actix_test::TestRequest::post().uri("/").to_request();
+        let resp = actix_test::call_service(&app, req).await;
+
+        std::env::remove_var("RUST_ENV");
+        // Allowed - SameSite=Strict cookies protect browser requests
+        assert!(resp.status().is_success());
+    }
+
+    #[test]
+    fn test_extract_origin_from_url() {
+        assert_eq!(
+            extract_origin_from_url("https://example.com/path/to/resource"),
+            Some("https://example.com".to_string())
+        );
+        assert_eq!(
+            extract_origin_from_url("http://localhost:3000/api/test"),
+            Some("http://localhost:3000".to_string())
+        );
+        assert_eq!(
+            extract_origin_from_url("invalid-url"),
+            None
+        );
+    }
+}
+
 #[cfg(test)]
 mod rate_limit_tests {
     use super::*;
