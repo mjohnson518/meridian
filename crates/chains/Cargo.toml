@@ -16,3 +16,12 @@ serde_json = { workspace = true }
 # Error handling
 thiserror = { workspace = true }
 
+# Async runtime (for background confirmation worker)
+tokio = { workspace = true }
+
+# Database (for confirmation worker queries)
+sqlx = { workspace = true }
+
+# Observability
+tracing = { workspace = true }
+

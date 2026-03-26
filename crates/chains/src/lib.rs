@@ -3,6 +3,8 @@
 //! Chain registry and configuration for deploying stablecoins across
 //! Ethereum, Solana, Base, Arbitrum, Optimism, and other supported chains.
 
+pub mod execution;
+
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
