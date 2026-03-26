@@ -58,6 +58,27 @@ export interface BasketComponent {
   lastPrice: string;
 }
 
+export interface AgentRecord {
+  agent_id: string;
+  agent_name: string;
+  wallet_address: string;
+  spending_limit_daily: string;
+  spending_limit_transaction: string;
+  daily_spent: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AgentTransaction {
+  id: number;
+  currency: string;
+  amount: string;
+  recipient: string;
+  status: string;
+  transaction_hash: string | null;
+  created_at: string;
+}
+
 // Helper for API calls
 async function apiCall<T>(
   endpoint: string,
@@ -96,6 +117,27 @@ export const api = {
       body: JSON.stringify(data),
     }),
   
+  // Agent endpoints
+  listAgents: (userId: string) =>
+    apiCall<{ agents: AgentRecord[] }>(`/agents/list/${userId}`, { credentials: 'include' }),
+
+  getAgentTransactions: (agentId: string) =>
+    apiCall<{ transactions: AgentTransaction[] }>(`/agents/transactions/${agentId}`, { credentials: 'include' }),
+
+  createAgent: (data: { user_id: number; agent_name: string; spending_limit_daily: string; spending_limit_transaction: string }) =>
+    apiCall<{ agent_id: string; api_key: string; wallet_address: string }>('/agents/create', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      credentials: 'include',
+    }),
+
+  payAgent: (data: { agent_id: string; api_key: string; recipient: string; amount: string; currency: string }) =>
+    apiCall<{ transaction_hash: string; status: string }>('/agents/pay', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      credentials: 'include',
+    }),
+
   // Oracle endpoints
   getPrice: (currency: string) =>
     apiCall<{ price: string; timestamp: number }>(`/oracle/prices/${currency}`),

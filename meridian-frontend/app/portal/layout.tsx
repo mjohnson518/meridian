@@ -1,6 +1,7 @@
 'use client';
 
 import { AuthProvider } from '@/lib/auth/AuthContext';
+import { QueryProvider } from '@/lib/providers/QueryProvider';
 import '@/app/globals.css';
 
 export default function PortalLayout({
@@ -9,6 +10,7 @@ export default function PortalLayout({
   children: React.ReactNode;
 }) {
   return (
+    <QueryProvider>
     <AuthProvider>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white transition-colors duration-300">
         {/* Subtle grid background overlay - dark mode only */}
@@ -43,6 +45,7 @@ export default function PortalLayout({
         </div>
       </div>
     </AuthProvider>
+    </QueryProvider>
   );
 }
 
