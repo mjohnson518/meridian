@@ -97,7 +97,17 @@ async fn main() -> std::io::Result<()> {
                 "WALLET_SERVICE_URL not set - agent wallet creation will fail in production"
             );
         }
-        tracing::info!("Production security checks passed (API_KEY_SALT, SESSION_TOKEN_SALT validated)");
+
+        // COMPLIANCE-001: Validate compliance cannot be disabled in production
+        if std::env::var("COMPLIANCE_ENABLED")
+            .map(|v| v.to_lowercase() == "false")
+            .unwrap_or(false)
+        {
+            panic!("SECURITY: COMPLIANCE_ENABLED=false is not permitted in production. \
+                Compliance screening is required for all mint/burn operations.");
+        }
+
+        tracing::info!("Production security checks passed (API_KEY_SALT, SESSION_TOKEN_SALT, COMPLIANCE validated)");
     }
 
     tracing::info!("CORS allowed origins: {}", cors_origins);

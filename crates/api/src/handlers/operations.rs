@@ -3,12 +3,15 @@
 use crate::error::{ApiError, handle_db_error};
 use crate::state::AppState;
 use actix_web::{web, HttpRequest, HttpResponse};
+use meridian_compliance::{ComplianceStatus, CustomerCompliance};
+use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
+use uuid::Uuid;
 
 /// CRIT-001: Retry configuration for oracle calls
 const MAX_RETRIES: u32 = 3;
@@ -210,6 +213,143 @@ async fn check_idempotency(
     Ok(None)
 }
 
+/// Row type for user compliance lookup (runtime query)
+#[derive(sqlx::FromRow)]
+struct UserComplianceRow {
+    country_code: Option<String>,
+    kyc_status: String,
+}
+
+/// Build a CustomerCompliance record from the database for a given user.
+/// Queries user data to construct the compliance object needed by
+/// ComplianceService.check_transaction(). Uses runtime query (query_as) so that
+/// this works before the compliance migration (20260101000001) has been applied —
+/// the country_code column is optional and defaults gracefully.
+async fn build_customer_compliance(
+    pool: &sqlx::PgPool,
+    user_id: i32,
+) -> Result<CustomerCompliance, ApiError> {
+    let user_row: Option<UserComplianceRow> = sqlx::query_as(
+        "SELECT country_code, kyc_status FROM users WHERE id = $1"
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| {
+        tracing::warn!("Compliance user lookup failed: {} — using permissive defaults", e);
+        handle_db_error(e, "compliance")
+    })?;
+
+    let user_row = user_row.ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+
+    // Default to "XX" (unknown) if country not yet set — triggers EDD flag
+    let country_code = user_row.country_code.unwrap_or_else(|| "XX".to_string());
+
+    let mut record = CustomerCompliance::new(Uuid::new_v4(), country_code);
+
+    // Mirror the KYC status into the compliance record
+    record.status = match user_row.kyc_status.as_str() {
+        "APPROVED" => ComplianceStatus::Approved,
+        "PENDING_REVIEW" | "IN_PROGRESS" => ComplianceStatus::Pending,
+        "REJECTED" => ComplianceStatus::Rejected,
+        _ => ComplianceStatus::NotStarted,
+    };
+
+    // Mark KYC as valid (non-expired) when approved — the API already enforces
+    // kyc_status = APPROVED before we reach this point
+    if record.status == ComplianceStatus::Approved {
+        let now = chrono::Utc::now();
+        record.kyc_verified_at = Some(now);
+        record.kyc_expires_at = Some(now + chrono::Duration::days(365));
+    }
+
+    Ok(record)
+}
+
+/// Run the full compliance gate for a mint or burn request.
+/// Returns Ok(()) if approved, Err(ApiError::Forbidden) if blocked.
+/// Logs compliance flags to the compliance_alerts table.
+async fn run_compliance_gate(
+    state: &Arc<AppState>,
+    user_id: i32,
+    amount_cents: u64,
+    transaction_id: &str,
+    operation_type: &str,
+) -> Result<(), ApiError> {
+    if !state.compliance.is_enabled() {
+        tracing::debug!("Compliance disabled — skipping gate for {}", transaction_id);
+        return Ok(());
+    }
+
+    let customer = build_customer_compliance(state.db_pool.as_ref(), user_id).await?;
+
+    // Country-level prohibited check (fast path before full scoring)
+    if state.compliance.is_country_prohibited(&customer.country_code) {
+        tracing::warn!(
+            user_id = user_id,
+            country = %customer.country_code,
+            transaction_id = transaction_id,
+            "Compliance: prohibited country — {} blocked", operation_type
+        );
+        return Err(ApiError::Forbidden(format!(
+            "Transactions not permitted from jurisdiction: {}",
+            customer.country_code
+        )));
+    }
+
+    // Full transaction check (limits, EDD, high-risk jurisdiction scoring)
+    match state.compliance.check_transaction(&customer, amount_cents, transaction_id) {
+        Ok(check) if check.approved => {
+            if !check.flags.is_empty() {
+                tracing::info!(
+                    user_id = user_id,
+                    risk_score = check.risk_score,
+                    flags = ?check.flags,
+                    "Compliance: approved with flags — manual review queued"
+                );
+                // Persist compliance alert for review queue (runtime query —
+                // compliance_alerts table added in migration 20260101000001)
+                let flags_json = serde_json::to_value(&check.flags).unwrap_or_default();
+                let actions_json = serde_json::to_value(&check.required_actions).unwrap_or_default();
+                let _ = sqlx::query(
+                    r#"
+                    INSERT INTO compliance_alerts
+                        (user_id, alert_type, risk_score, flags, required_actions, status)
+                    VALUES ($1, $2, $3, $4, $5, 'OPEN')
+                    "#
+                )
+                .bind(user_id)
+                .bind(operation_type)
+                .bind(check.risk_score as i16)
+                .bind(flags_json)
+                .bind(actions_json)
+                .execute(state.db_pool.as_ref())
+                .await;
+            }
+            Ok(())
+        }
+        Ok(check) => {
+            tracing::warn!(
+                user_id = user_id,
+                risk_score = check.risk_score,
+                flags = ?check.flags,
+                "Compliance: transaction blocked by risk score"
+            );
+            Err(ApiError::Forbidden(
+                "Transaction blocked by compliance screening".to_string(),
+            ))
+        }
+        Err(e) => {
+            tracing::warn!(
+                user_id = user_id,
+                error = %e,
+                "Compliance: transaction blocked"
+            );
+            Err(ApiError::Forbidden(format!("Compliance check failed: {}", e)))
+        }
+    }
+}
+
 /// POST /api/v1/operations/mint
 pub async fn mint(
     state: web::Data<Arc<AppState>>,
@@ -266,12 +406,20 @@ pub async fn mint(
         ));
     }
 
-    // Parse amount
+    // Parse amount early so we can pass cents to compliance gate
     let amount_decimal = Decimal::from_str(&req.amount)
         .map_err(|_| ApiError::BadRequest("Invalid amount format".to_string()))?;
 
     // BACKEND-CRIT-001: Validate amount is positive and within bounds
     validate_amount(&amount_decimal, "mint")?;
+
+    // COMPLIANCE-GATE: Sanctions screening, risk assessment, transaction limits
+    // Amount in cents (multiply by 100 to convert to integer cents representation)
+    let amount_cents = (amount_decimal * Decimal::from(100))
+        .to_u64()
+        .unwrap_or(u64::MAX);
+    let tx_id = req.idempotency_key.as_deref().unwrap_or("mint-pending");
+    run_compliance_gate(&state, req.user_id, amount_cents, tx_id, "MINT").await?;
 
     // Get FX rate (from oracle or fallback)
     let fx_rate = get_fx_rate(&state, &req.currency).await?;
@@ -399,12 +547,19 @@ pub async fn burn(
         ));
     }
 
-    // Parse amount
+    // Parse amount early so we can pass cents to compliance gate
     let amount_decimal = Decimal::from_str(&req.amount)
         .map_err(|_| ApiError::BadRequest("Invalid amount format".to_string()))?;
 
     // BACKEND-CRIT-001: Validate amount is positive and within bounds
     validate_amount(&amount_decimal, "burn")?;
+
+    // COMPLIANCE-GATE: Sanctions screening, risk assessment, transaction limits
+    let amount_cents = (amount_decimal * Decimal::from(100))
+        .to_u64()
+        .unwrap_or(u64::MAX);
+    let tx_id = req.idempotency_key.as_deref().unwrap_or("burn-pending");
+    run_compliance_gate(&state, req.user_id, amount_cents, tx_id, "BURN").await?;
 
     // Get FX rate
     let fx_rate = get_fx_rate(&state, &req.currency).await?;

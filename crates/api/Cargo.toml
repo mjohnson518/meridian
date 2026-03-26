@@ -14,6 +14,7 @@ path = "src/main.rs"
 meridian-basket = { path = "../basket" }
 meridian-oracle = { path = "../oracle" }
 meridian-db = { path = "../db" }
+meridian-compliance = { path = "../compliance" }
 
 # Web framework
 actix-web = { workspace = true }

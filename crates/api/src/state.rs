@@ -1,5 +1,8 @@
 //! Application state shared across all handlers
 
+use meridian_compliance::{ComplianceConfig, ComplianceService};
+use meridian_compliance::risk::RiskEngine;
+use meridian_compliance::sanctions::SanctionsService;
 use meridian_oracle::ChainlinkOracle;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
@@ -167,6 +170,12 @@ pub struct AppState {
     pub oracle: Arc<RwLock<Option<ChainlinkOracle>>>,
     /// CRIT-002: Circuit breaker for oracle calls
     pub oracle_circuit_breaker: CircuitBreaker,
+    /// Compliance service for transaction pre-screening
+    pub compliance: Arc<ComplianceService>,
+    /// Risk scoring engine (FATF guidelines)
+    pub risk_engine: Arc<RiskEngine>,
+    /// Sanctions screening service (OFAC, EU, UN, UK)
+    pub sanctions: Arc<SanctionsService>,
 }
 
 impl AppState {
@@ -190,10 +199,31 @@ impl AppState {
             None
         };
 
+        // Initialize compliance services from environment
+        let compliance_config = ComplianceConfig {
+            enabled: std::env::var("COMPLIANCE_ENABLED")
+                .map(|v| v.to_lowercase() != "false")
+                .unwrap_or(true),
+            sanctions_api_url: std::env::var("SANCTIONS_API_URL").ok(),
+            kyc_api_url: std::env::var("KYC_API_URL").ok(),
+            ..Default::default()
+        };
+
+        let sanctions_api_url = compliance_config.sanctions_api_url.clone();
+
+        if compliance_config.enabled {
+            tracing::info!("Compliance service enabled");
+        } else {
+            tracing::warn!("COMPLIANCE_ENABLED=false — compliance checks are disabled (dev/test only)");
+        }
+
         Self {
             db_pool: Arc::new(db_pool),
             oracle: Arc::new(RwLock::new(oracle)),
             oracle_circuit_breaker: CircuitBreaker::new(),
+            compliance: Arc::new(ComplianceService::new(compliance_config)),
+            risk_engine: Arc::new(RiskEngine::new()),
+            sanctions: Arc::new(SanctionsService::new(sanctions_api_url)),
         }
     }
 }
