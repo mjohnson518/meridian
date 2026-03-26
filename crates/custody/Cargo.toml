@@ -1,0 +1,34 @@
+[package]
+name = "meridian-custody"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Async
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+# HTTP client for custodian APIs
+reqwest = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Financial precision
+rust_decimal = { workspace = true }
+
+# Date/time
+chrono = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Logging
+tracing = { workspace = true }

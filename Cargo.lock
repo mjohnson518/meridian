@@ -2771,6 +2771,7 @@ dependencies = [
  "ethers",
  "hex",
  "meridian-basket",
+ "meridian-compliance",
  "meridian-db",
  "meridian-oracle",
  "opentelemetry 0.27.1",
@@ -2790,6 +2791,7 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "url",
  "utoipa",
  "utoipa-swagger-ui",
  "uuid 1.18.1",
@@ -2816,7 +2818,10 @@ dependencies = [
  "ethers",
  "serde",
  "serde_json",
+ "sqlx",
  "thiserror 1.0.69",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2825,9 +2830,28 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "reqwest",
+ "rust_decimal",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
+ "tokio",
+ "uuid 1.18.1",
+]
+
+[[package]]
+name = "meridian-custody"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "reqwest",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
  "uuid 1.18.1",
 ]
 

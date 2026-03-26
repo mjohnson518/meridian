@@ -7,6 +7,7 @@ members = [
     "crates/db",
     "crates/chains",
     "crates/compliance",
+    "crates/custody",
 ]
 
 [workspace.package]
@@ -67,6 +68,9 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 
 # Testing
 mockall = "0.12"
+
+# Async trait support
+async-trait = "0.1"
 
 # OpenAPI documentation
 utoipa = { version = "4.2", features = ["actix_extras", "uuid", "chrono"] }
