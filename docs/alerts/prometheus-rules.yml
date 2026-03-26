@@ -1,0 +1,171 @@
+# Meridian Prometheus Alerting Rules
+# CRIT-009: Production alerting configuration
+#
+# Deploy to Prometheus/Grafana Cloud/DataDog
+# or configure via your observability platform
+
+groups:
+  - name: meridian-critical
+    rules:
+      # API Health
+      - alert: MeridianAPIDown
+        expr: up{job="meridian-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Meridian API is down"
+          description: "Meridian API has been unreachable for more than 1 minute"
+          runbook_url: "docs/RUNBOOK.md#inc-001-api-unresponsive"
+
+      - alert: MeridianAPIHighErrorRate
+        expr: rate(http_requests_total{job="meridian-api",status=~"5.."}[5m]) / rate(http_requests_total{job="meridian-api"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Meridian API high error rate ({{ $value | humanizePercentage }})"
+          description: "More than 5% of requests are failing"
+          runbook_url: "docs/RUNBOOK.md#inc-001-api-unresponsive"
+
+      # Database
+      - alert: MeridianDatabaseDown
+        expr: meridian_db_pool_size == 0
+        for: 30s
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Meridian database connection pool is empty"
+          description: "No database connections available - all requests will fail"
+          runbook_url: "docs/RUNBOOK.md#inc-002-database-pool-exhaustion"
+
+      - alert: MeridianDatabasePoolExhausted
+        expr: meridian_db_pool_idle == 0 and meridian_db_pool_size > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Meridian database pool has no idle connections"
+          description: "All database connections are in use - may indicate high load or connection leak"
+          runbook_url: "docs/RUNBOOK.md#inc-002-database-pool-exhaustion"
+
+      # Oracle/Blockchain
+      - alert: MeridianOracleDisabled
+        expr: meridian_oracle_enabled == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Meridian oracle is disabled"
+          description: "Oracle integration is not functioning - price feeds unavailable"
+          runbook_url: "docs/RUNBOOK.md#inc-003-oracle-rpc-failure"
+
+  - name: meridian-warning
+    rules:
+      # Latency
+      - alert: MeridianAPIHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="meridian-api"}[5m])) > 2
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Meridian API P95 latency is high ({{ $value | humanizeDuration }})"
+          description: "95th percentile latency exceeds 2 seconds"
+
+      # Resource utilization
+      - alert: MeridianHighMemoryUsage
+        expr: process_resident_memory_bytes{job="meridian-api"} / 1024 / 1024 > 512
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Meridian API memory usage is high ({{ $value | humanize }}MB)"
+          description: "Memory usage exceeds 512MB - consider scaling or investigating leaks"
+
+      # Rate limiting
+      - alert: MeridianHighRateLimitHits
+        expr: rate(http_requests_total{job="meridian-api",status="429"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "High rate of rate-limited requests"
+          description: "More than 10 requests/second are being rate limited"
+          runbook_url: "docs/RUNBOOK.md#inc-004-rate-limiting-active"
+
+  - name: meridian-business
+    rules:
+      # Operations monitoring
+      - alert: MeridianNoMintOperations
+        expr: increase(meridian_operations_total{type="mint"}[1h]) == 0
+        for: 2h
+        labels:
+          severity: info
+          team: business
+        annotations:
+          summary: "No mint operations in the last 2 hours"
+          description: "This may indicate a system issue or simply low activity"
+
+      - alert: MeridianNoNewUsers
+        expr: increase(meridian_users_total[24h]) == 0
+        for: 24h
+        labels:
+          severity: info
+          team: business
+        annotations:
+          summary: "No new user registrations in 24 hours"
+          description: "This may indicate registration issues or simply low activity"
+
+  - name: meridian-security
+    rules:
+      # Authentication
+      - alert: MeridianHighAuthFailureRate
+        expr: rate(auth_failures_total{job="meridian-api"}[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "High authentication failure rate"
+          description: "More than 50 failed authentication attempts per minute - possible brute force attack"
+
+      - alert: MeridianUnauthorizedAdminAccess
+        expr: increase(http_requests_total{job="meridian-api",path="/metrics",status="403"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Multiple unauthorized admin access attempts"
+          description: "Multiple requests to admin endpoints returning 403 Forbidden"
+
+# Notification routing (example for Alertmanager)
+# Configure in alertmanager.yml:
+#
+# route:
+#   group_by: ['alertname', 'team']
+#   receiver: 'default'
+#   routes:
+#     - match:
+#         severity: critical
+#       receiver: 'pagerduty'
+#     - match:
+#         team: security
+#       receiver: 'security-slack'
+#
+# receivers:
+#   - name: 'pagerduty'
+#     pagerduty_configs:
+#       - service_key: '<pagerduty-key>'
+#   - name: 'security-slack'
+#     slack_configs:
+#       - api_url: '<slack-webhook>'
+#         channel: '#security-alerts'

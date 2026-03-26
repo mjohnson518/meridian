@@ -59,7 +59,17 @@ coverage/
 tmp/
 temp/
 *.tmp
+*.crdownload
 contracts/build_errors.txt
+
+# Test artifacts
+meridian-frontend/test-results/
+
+# Root-level package-lock (not part of any workspace package)
+/package-lock.json
+
+# Audit output directories
+docs/frontend-audit/
 
 # Security - NEVER commit these
 *_PRIVATE_KEY*
@@ -115,3 +125,7 @@ meridian_issuer_tech_spec.md
 AUDIT_REPORT*.md
 PROGRESS*.md
 GIT_COMMANDS*.md
+CLAUDE*.md
+DEPLOYMENT_GUIDE*.md
+NAMING_CONVENTIONS*.md
+.claude/
