@@ -13,10 +13,12 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+pub mod kyb;
 pub mod kyc;
+pub mod mica;
+pub mod monitoring;
 pub mod risk;
 pub mod sanctions;
-pub mod monitoring;
 
 /// Compliance-related errors
 #[derive(Error, Debug)]
