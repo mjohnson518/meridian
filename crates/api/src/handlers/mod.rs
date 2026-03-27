@@ -9,6 +9,7 @@ pub mod kyc;
 pub mod operations;
 pub mod oracle;
 pub mod reserves;
+pub mod tenants;
 
 pub use agents::*;
 pub use auth::*;
@@ -18,3 +19,4 @@ pub use kyc::*;
 pub use operations::*;
 pub use oracle::*;
 pub use reserves::*;
+pub use tenants::*;

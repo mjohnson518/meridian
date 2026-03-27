@@ -92,5 +92,27 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     web::post().to(handlers::update_price),
                 )
                 .route("/feeds", web::post().to(handlers::register_price_feed)),
+        )
+        // Tenant management (C.1 + C.5)
+        .service(
+            web::scope("/api/v1/tenants")
+                .route("", web::post().to(handlers::create_tenant))
+                .route("", web::get().to(handlers::list_tenants))
+                .route("/{id}", web::get().to(handlers::get_tenant)),
+        )
+        // API key management (C.2)
+        .service(
+            web::scope("/api/v1/auth/api-keys")
+                .route("", web::post().to(handlers::create_api_key))
+                .route("", web::get().to(handlers::list_api_keys))
+                .route("/{id}", web::delete().to(handlers::revoke_api_key)),
+        )
+        // Webhook management (C.3)
+        .service(
+            web::scope("/api/v1/webhooks")
+                .route("", web::post().to(handlers::create_webhook))
+                .route("", web::get().to(handlers::list_webhooks))
+                .route("/test", web::post().to(handlers::test_webhook))
+                .route("/{id}", web::delete().to(handlers::delete_webhook)),
         );
 }
