@@ -32,7 +32,6 @@ contract MeridianStablecoinTest is Test {
 
     address public admin = address(0x1);
     address public minter = address(0x2);
-    address public burner = address(0x3);
     address public user = address(0x4);
     MockComplianceOracle public mockOracle;
 
@@ -65,7 +64,6 @@ contract MeridianStablecoinTest is Test {
         // Grant roles
         vm.startPrank(admin);
         stablecoin.grantRole(stablecoin.MINTER_ROLE(), minter);
-        stablecoin.grantRole(stablecoin.BURNER_ROLE(), burner);
         vm.stopPrank();
     }
 

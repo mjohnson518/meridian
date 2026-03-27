@@ -41,7 +41,6 @@ contract MeridianStablecoinFuzzTest is Test {
 
         vm.startPrank(admin);
         stablecoin.grantRole(stablecoin.MINTER_ROLE(), minter);
-        stablecoin.grantRole(stablecoin.BURNER_ROLE(), minter);
         vm.stopPrank();
     }
 

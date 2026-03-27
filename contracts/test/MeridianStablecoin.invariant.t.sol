@@ -93,17 +93,9 @@ contract MeridianStablecoinInvariantTest is Test {
 
         vm.startPrank(admin);
         stablecoin.grantRole(stablecoin.MINTER_ROLE(), minter);
-        stablecoin.grantRole(stablecoin.BURNER_ROLE(), minter);
         vm.stopPrank();
 
         handler = new MintBurnHandler(stablecoin, minter);
-
-        // Also grant BURNER_ROLE to actors so they can self-burn
-        vm.startPrank(admin);
-        stablecoin.grantRole(stablecoin.BURNER_ROLE(), address(0x100));
-        stablecoin.grantRole(stablecoin.BURNER_ROLE(), address(0x101));
-        stablecoin.grantRole(stablecoin.BURNER_ROLE(), address(0x102));
-        vm.stopPrank();
 
         targetContract(address(handler));
     }

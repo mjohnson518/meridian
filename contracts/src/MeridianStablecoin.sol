@@ -47,10 +47,7 @@ contract MeridianStablecoin is
 
     /// @notice Role for minting new tokens
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    
-    /// @notice Role for burning tokens
-    bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
-    
+
     /// @notice Role for pausing contract
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     
@@ -89,9 +86,6 @@ contract MeridianStablecoin is
 
     /// @notice Total reserve value in USD (with 2 decimals, e.g., 100 = $1.00)
     uint256 public totalReserveValue;
-
-    /// @notice Mapping of currency code to reserve amount
-    mapping(string => uint256) public currencyReserves;
 
     /// @notice Address of the compliance oracle
     address public complianceOracle;
@@ -254,7 +248,6 @@ contract MeridianStablecoin is
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(MINTER_ROLE, admin_);
-        _grantRole(BURNER_ROLE, admin_);
         _grantRole(PAUSER_ROLE, admin_);
         _grantRole(UPGRADER_ROLE, admin_);
 
