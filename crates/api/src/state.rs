@@ -1,8 +1,11 @@
 //! Application state shared across all handlers
 
+use ethers::types::Address;
+use meridian_chains::execution::EvmExecutor;
 use meridian_compliance::{ComplianceConfig, ComplianceService};
 use meridian_compliance::risk::RiskEngine;
 use meridian_compliance::sanctions::SanctionsService;
+use meridian_custody::{build_adapter_from_env, CustodyAdapter};
 use meridian_oracle::ChainlinkOracle;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
@@ -176,6 +179,10 @@ pub struct AppState {
     pub risk_engine: Arc<RiskEngine>,
     /// Sanctions screening service (OFAC, EU, UN, UK)
     pub sanctions: Arc<SanctionsService>,
+    /// EVM executor for on-chain mint/burn/attestation (None if MINTER_PRIVATE_KEY not set)
+    pub evm_executor: Option<Arc<EvmExecutor>>,
+    /// Custody adapter for Proof of Reserves (defaults to MockAdapter)
+    pub custody: Arc<dyn CustodyAdapter>,
 }
 
 impl AppState {
@@ -217,6 +224,12 @@ impl AppState {
             tracing::warn!("COMPLIANCE_ENABLED=false — compliance checks are disabled (dev/test only)");
         }
 
+        // Try to initialize EVM executor if keys are available
+        let evm_executor = Self::try_init_executor().await;
+
+        // Initialize custody adapter from environment (defaults to mock)
+        let custody: Arc<dyn CustodyAdapter> = Arc::from(build_adapter_from_env());
+
         Self {
             db_pool: Arc::new(db_pool),
             oracle: Arc::new(RwLock::new(oracle)),
@@ -224,6 +237,33 @@ impl AppState {
             compliance: Arc::new(ComplianceService::new(compliance_config)),
             risk_engine: Arc::new(RiskEngine::new()),
             sanctions: Arc::new(SanctionsService::new(sanctions_api_url)),
+            evm_executor,
+            custody,
+        }
+    }
+
+    async fn try_init_executor() -> Option<Arc<EvmExecutor>> {
+        let rpc_url = std::env::var("SEPOLIA_RPC_URL")
+            .or_else(|_| std::env::var("ETHEREUM_RPC_URL"))
+            .ok()?;
+
+        let contract_addr_str = std::env::var("CONTRACT_ADDRESS").ok()?;
+        let contract_address: Address = contract_addr_str.parse().ok()?;
+
+        let chain_id = std::env::var("CHAIN_ID")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(11155111); // Default to Sepolia
+
+        match EvmExecutor::from_env(&rpc_url, contract_address, chain_id).await {
+            Ok(executor) => {
+                tracing::info!(chain_id, "EVM executor initialized");
+                Some(Arc::new(executor))
+            }
+            Err(e) => {
+                tracing::warn!("EVM executor unavailable (on-chain execution disabled): {}", e);
+                None
+            }
         }
     }
 }

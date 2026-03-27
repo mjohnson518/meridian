@@ -7,9 +7,12 @@ mod openapi;
 use actix_cors::Cors;
 use actix_governor::{Governor, GovernorConfigBuilder};
 use actix_web::{middleware::{DefaultHeaders, Logger}, web, App, HttpServer};
+use ethers::types::U256;
 use meridian_api::{routes, state::AppState, telemetry, CorrelationIdMiddleware, RateLimitHeadersMiddleware};
+use meridian_chains::execution::spawn_confirmation_worker;
 use meridian_db::{create_pool, run_migrations};
 use openapi::ApiDoc;
+use rust_decimal::Decimal;
 use std::sync::Arc;
 use std::time::Duration;
 use utoipa::OpenApi;
@@ -51,6 +54,73 @@ async fn main() -> std::io::Result<()> {
     let app_state = Arc::new(AppState::new(db_pool).await);
 
     tracing::info!("Application state initialized");
+
+    // A.4: Spawn background services
+    // 1. On-chain confirmation worker (polls PENDING ops and updates to COMPLETED/FAILED)
+    if let Some(ref executor) = app_state.evm_executor {
+        let _confirmation_handle = spawn_confirmation_worker(
+            executor.clone(),
+            app_state.db_pool.clone(),
+            Duration::from_secs(15),
+        );
+        tracing::info!("Confirmation worker spawned (poll interval: 15s)");
+    } else {
+        tracing::info!("Confirmation worker skipped — EVM executor not configured");
+    }
+
+    // 2. Proof of Reserves attestation (every 6h)
+    {
+        let custody = app_state.custody.clone();
+        let executor = app_state.evm_executor.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(6 * 3600));
+            loop {
+                interval.tick().await;
+                match custody.get_total_value_usd().await {
+                    Ok(total_usd) => {
+                        tracing::info!(total_usd = %total_usd, "PoR attestation: custody total retrieved");
+                        if let Some(ref exec) = executor {
+                            // Convert USD value (2 decimal units)
+                            let value_units = (total_usd * Decimal::from(100))
+                                .to_string()
+                                .parse::<u128>()
+                                .unwrap_or(0);
+                            match exec.attest_reserves_on_chain(U256::from(value_units)).await {
+                                Ok(tx) => tracing::info!(tx_hash = ?tx.tx_hash, "PoR attestation submitted on-chain"),
+                                Err(e) => tracing::warn!(error = %e, "PoR attestation submission failed"),
+                            }
+                        }
+                    }
+                    Err(e) => tracing::warn!(error = %e, "PoR attestation: custody query failed"),
+                }
+            }
+        });
+        tracing::info!("PoR attestation worker spawned (interval: 6h)");
+    }
+
+    // 3. Session cleanup (every 1h — remove expired sessions)
+    {
+        let db_pool = app_state.db_pool.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(3600));
+            loop {
+                interval.tick().await;
+                match sqlx::query("DELETE FROM sessions WHERE expires_at < NOW()")
+                    .execute(db_pool.as_ref())
+                    .await
+                {
+                    Ok(r) => {
+                        if r.rows_affected() > 0 {
+                            tracing::info!(expired = r.rows_affected(), "Session cleanup: expired sessions removed");
+                        }
+                    }
+                    Err(e) => tracing::warn!(error = %e, "Session cleanup query failed"),
+                }
+            }
+        });
+        tracing::info!("Session cleanup worker spawned (interval: 1h)");
+    }
+
     tracing::info!("Server starting at http://{}:{}", host, port);
 
     // Get CORS allowed origins from environment

@@ -173,12 +173,36 @@ pub async fn get_reserves(
                 hundred // No supply means fully backed by default
             };
 
+            // Fetch live bond holdings from custody adapter
+            let bond_holdings = match state.custody.get_bond_holdings().await {
+                Ok(holdings) => holdings
+                    .into_iter()
+                    .filter(|h| h.currency == currency_code)
+                    .map(|h| BondHolding {
+                        isin: h.isin,
+                        name: h.name,
+                        maturity: h.maturity_date.format("%Y-%m-%d").to_string(),
+                        quantity: format!("{:.2}", h.face_value),
+                        price: "100.00".to_string(), // Would come from oracle in production
+                        value: format!("{:.2}", h.market_value),
+                        r#yield: format!("{:.4}", h.yield_to_maturity),
+                        rating: "AAA".to_string(), // Would come from custody metadata
+                    })
+                    .collect::<Vec<_>>(),
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to fetch custody bond holdings");
+                    vec![]
+                }
+            };
+
+            let demo_mode = state.custody.provider_name() == "MockAdapter";
+
             let response = ReserveData {
                 total_value: format!("{:.2}", reserve_value),
                 reserve_ratio: format!("{:.2}", ratio),
                 trend: "0.00".to_string(), // Would need historical data
                 active_currencies: 1,
-                bond_holdings: vec![], // Real holdings would come from custody integration
+                bond_holdings,
                 history: generate_history_placeholder(reserve_value, ratio),
                 currencies: vec![
                     CurrencyBreakdown {
@@ -187,8 +211,8 @@ pub async fn get_reserves(
                         percentage: "100.00".to_string(),
                     }
                 ],
-                demo_mode: false, // This is REAL data
-                data_source: "database".to_string(),
+                demo_mode,
+                data_source: if demo_mode { "mock_custody".to_string() } else { "custody".to_string() },
             };
 
             Ok(HttpResponse::Ok().json(response))

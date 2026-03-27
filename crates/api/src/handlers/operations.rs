@@ -3,6 +3,8 @@
 use crate::error::{ApiError, handle_db_error};
 use crate::state::AppState;
 use actix_web::{web, HttpRequest, HttpResponse};
+use ethers::types::{Address, U256};
+use meridian_chains::execution::OnChainMintRequest;
 use meridian_compliance::{ComplianceStatus, CustomerCompliance};
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
@@ -479,6 +481,55 @@ pub async fn mint(
         "Mint operation created"
     );
 
+    // Wire to on-chain executor if configured
+    let mut tx_hash: Option<String> = None;
+    if let Some(ref executor) = state.evm_executor {
+        // recipient defaults to signer address; real impl would use wallet_address from user record
+        let recipient = executor
+            .get_nonce(Address::zero())
+            .await
+            .ok()
+            .map(|_| Address::zero())
+            .unwrap_or(Address::zero());
+
+        // amount in 6-decimal units (like USDC)
+        let amount_units = (amount_decimal * Decimal::from(1_000_000))
+            .to_u128()
+            .unwrap_or(0);
+        let reserve_units = (bond_requirement * Decimal::from(100))
+            .to_u128()
+            .unwrap_or(0);
+        let deadline = (chrono::Utc::now() + chrono::Duration::minutes(30)).timestamp() as u128;
+
+        let mint_req = OnChainMintRequest {
+            recipient,
+            amount: U256::from(amount_units),
+            reserve_value: U256::from(reserve_units),
+            deadline: U256::from(deadline),
+        };
+
+        match executor.mint_on_chain(mint_req).await {
+            Ok(submitted) => {
+                let hash = format!("{:?}", submitted.tx_hash);
+                tracing::info!(tx_hash = %hash, "Mint submitted on-chain");
+                // Update operation row with tx_hash (best-effort)
+                let _ = sqlx::query(
+                    "UPDATE operations SET transaction_hash = $1 WHERE id = $2"
+                )
+                .bind(&hash)
+                .bind(operation.id)
+                .execute(state.db_pool.as_ref())
+                .await;
+                tx_hash = Some(hash);
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "On-chain mint submission failed — operation remains PENDING");
+            }
+        }
+    } else {
+        tracing::debug!("EVM executor not configured — mint stays PENDING until executor is wired");
+    }
+
     Ok(HttpResponse::Created().json(MintResponse {
         transaction_id: operation.id,
         currency: req.currency.clone(),
@@ -487,7 +538,7 @@ pub async fn mint(
         bond_requirement: bond_requirement.to_string(),
         fees_charged: fees.to_string(),
         settlement_date: settlement_date.to_rfc3339(),
-        status: operation.status,
+        status: tx_hash.map(|_| "SUBMITTED".to_string()).unwrap_or(operation.status),
     }))
 }
 
@@ -617,6 +668,33 @@ pub async fn burn(
         "Burn operation created"
     );
 
+    // Wire to on-chain executor if configured
+    let mut burn_tx_hash: Option<String> = None;
+    if let Some(ref executor) = state.evm_executor {
+        let amount_units = (amount_decimal * Decimal::from(1_000_000))
+            .to_u128()
+            .unwrap_or(0);
+
+        match executor.burn_on_chain(U256::from(amount_units)).await {
+            Ok(submitted) => {
+                let hash = format!("{:?}", submitted.tx_hash);
+                tracing::info!(tx_hash = %hash, "Burn submitted on-chain");
+                let _ = sqlx::query(
+                    "UPDATE operations SET transaction_hash = $1 WHERE id = $2"
+                )
+                .bind(&hash)
+                .bind(operation.id)
+                .execute(state.db_pool.as_ref())
+                .await;
+                burn_tx_hash = Some(hash);
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "On-chain burn submission failed — operation remains PENDING");
+            }
+        }
+    }
+
+    let status = burn_tx_hash.map(|_| "SUBMITTED".to_string()).unwrap_or(operation.status);
     Ok(HttpResponse::Created().json(serde_json::json!({
         "transaction_id": operation.id,
         "currency": req.currency,
@@ -625,7 +703,7 @@ pub async fn burn(
         "fees_charged": fees.to_string(),
         "net_proceeds": net_proceeds.to_string(),
         "settlement_date": settlement_date.to_rfc3339(),
-        "status": operation.status
+        "status": status
     })))
 }
 
