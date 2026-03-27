@@ -1,0 +1,13 @@
+{
+  "filter_paths": "lib/",
+  "exclude_informational": false,
+  "exclude_low": false,
+  "detectors_to_exclude": [
+    "divide-before-multiply"
+  ],
+  "solc_remaps": [
+    "@openzeppelin/=lib/openzeppelin-contracts/",
+    "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/"
+  ],
+  "solc": "0.8.22"
+}

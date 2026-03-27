@@ -1,6 +1,5 @@
 //! Stablecoin repository
 
-use crate::decimal_helpers::decimal_to_text;
 use crate::error::DbError;
 use crate::models::{CreateStablecoinRequest, StablecoinRow};
 use crate::Pool;
@@ -115,10 +114,6 @@ impl StablecoinRepository {
         total_supply: Decimal,
         total_reserve_value: Decimal,
     ) -> Result<(), DbError> {
-        // Convert Decimal to TEXT for storage
-        let supply_text = decimal_to_text(total_supply);
-        let reserve_text = decimal_to_text(total_reserve_value);
-
         sqlx::query(
             r#"
             UPDATE stablecoins
@@ -128,8 +123,8 @@ impl StablecoinRepository {
             WHERE id = $3
             "#,
         )
-        .bind(&supply_text)
-        .bind(&reserve_text)
+        .bind(total_supply)
+        .bind(total_reserve_value)
         .bind(id)
         .execute(&self.pool)
         .await?;

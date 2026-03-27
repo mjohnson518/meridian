@@ -129,10 +129,7 @@ async fn test_insert_and_retrieve_price() {
         .expect("Failed to get latest price");
 
     assert_eq!(latest.currency_pair, "EUR/USD");
-    // Price is stored as TEXT, verify it converts back correctly
-    use meridian_db::text_to_decimal;
-    let price = text_to_decimal(&latest.price).expect("Failed to parse price");
-    assert_eq!(price, Decimal::new(108, 2));
+    assert_eq!(latest.price, Decimal::new(108, 2));
     assert_eq!(latest.source, "chainlink");
 }
 

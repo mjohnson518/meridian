@@ -8,13 +8,14 @@ use actix_cors::Cors;
 use actix_governor::{Governor, GovernorConfigBuilder};
 use actix_web::{middleware::{DefaultHeaders, Logger}, web, App, HttpServer};
 use ethers::types::U256;
-use meridian_api::{routes, state::AppState, telemetry, CorrelationIdMiddleware, RateLimitHeadersMiddleware};
+use meridian_api::{metrics, routes, state::AppState, telemetry, CorrelationIdMiddleware, RateLimitHeadersMiddleware};
 use meridian_chains::execution::spawn_confirmation_worker;
 use meridian_db::{create_pool, run_migrations};
 use openapi::ApiDoc;
 use rust_decimal::Decimal;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::task::JoinHandle;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -23,6 +24,9 @@ async fn main() -> std::io::Result<()> {
     // CRIT-003: Initialize telemetry with OpenTelemetry support
     let telemetry_config = telemetry::TelemetryConfig::from_env();
     telemetry::init_telemetry(telemetry_config);
+
+    // H.3: Register Prometheus business metrics
+    metrics::init_metrics();
 
     tracing::info!("Starting Meridian API server...");
 
@@ -55,14 +59,17 @@ async fn main() -> std::io::Result<()> {
 
     tracing::info!("Application state initialized");
 
-    // A.4: Spawn background services
+    // A.4 + H.4: Spawn background services — store JoinHandles for graceful shutdown
+    let mut background_tasks: Vec<JoinHandle<()>> = Vec::new();
+
     // 1. On-chain confirmation worker (polls PENDING ops and updates to COMPLETED/FAILED)
     if let Some(ref executor) = app_state.evm_executor {
-        let _confirmation_handle = spawn_confirmation_worker(
+        let handle = spawn_confirmation_worker(
             executor.clone(),
             app_state.db_pool.clone(),
             Duration::from_secs(15),
         );
+        background_tasks.push(handle);
         tracing::info!("Confirmation worker spawned (poll interval: 15s)");
     } else {
         tracing::info!("Confirmation worker skipped — EVM executor not configured");
@@ -72,15 +79,16 @@ async fn main() -> std::io::Result<()> {
     {
         let custody = app_state.custody.clone();
         let executor = app_state.evm_executor.clone();
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(6 * 3600));
             loop {
                 interval.tick().await;
                 match custody.get_total_value_usd().await {
                     Ok(total_usd) => {
                         tracing::info!(total_usd = %total_usd, "PoR attestation: custody total retrieved");
+                        // H.3: Update custody balance metric
+                        metrics::set_custody_balance("total", total_usd.to_string().parse::<f64>().unwrap_or(0.0));
                         if let Some(ref exec) = executor {
-                            // Convert USD value (2 decimal units)
                             let value_units = (total_usd * Decimal::from(100))
                                 .to_string()
                                 .parse::<u128>()
@@ -95,13 +103,14 @@ async fn main() -> std::io::Result<()> {
                 }
             }
         });
+        background_tasks.push(handle);
         tracing::info!("PoR attestation worker spawned (interval: 6h)");
     }
 
     // 3. Session cleanup (every 1h — remove expired sessions)
     {
         let db_pool = app_state.db_pool.clone();
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(3600));
             loop {
                 interval.tick().await;
@@ -118,6 +127,7 @@ async fn main() -> std::io::Result<()> {
                 }
             }
         });
+        background_tasks.push(handle);
         tracing::info!("Session cleanup worker spawned (interval: 1h)");
     }
 
@@ -208,8 +218,13 @@ async fn main() -> std::io::Result<()> {
 
     tracing::info!("HTTP request timeout: {} seconds", request_timeout_secs);
 
+    // H.3: Expose /metrics endpoint — capture db_pool ref before moving into closure
+    let metrics_db_pool = app_state.db_pool.clone();
+
     // Start HTTP server
-    HttpServer::new(move || {
+    let server = HttpServer::new(move || {
+        // H.3: Clone for use in metrics handler
+        let _metrics_pool = metrics_db_pool.clone();
         let mut cors = Cors::default()
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
             .allowed_headers(vec![
@@ -270,12 +285,57 @@ async fn main() -> std::io::Result<()> {
                     .url("/api-docs/openapi.json", ApiDoc::openapi())
             )
             .configure(routes::configure)
+            // H.3: Prometheus metrics scrape endpoint
+            .route("/metrics", web::get().to(|| async {
+                actix_web::HttpResponse::Ok()
+                    .content_type("text/plain; version=0.0.4")
+                    .body(telemetry::prometheus_metrics())
+            }))
     })
     .bind((host.as_str(), port))?
     // HIGH-009: HTTP timeouts to prevent hanging requests
     .client_request_timeout(Duration::from_secs(request_timeout_secs))
     .client_disconnect_timeout(Duration::from_secs(5))
     .keep_alive(Duration::from_secs(75)) // Keep-alive slightly longer than client timeout
-    .run()
-    .await
+    .run();
+
+    let server_handle = server.handle();
+
+    // H.4: Graceful shutdown — listen for SIGTERM or CTRL-C
+    let shutdown_handle = server_handle.clone();
+    tokio::spawn(async move {
+        #[cfg(unix)]
+        {
+            use tokio::signal::unix::{signal, SignalKind};
+            let mut sigterm = signal(SignalKind::terminate())
+                .expect("Failed to install SIGTERM handler");
+            tokio::select! {
+                _ = sigterm.recv() => tracing::info!("SIGTERM received — initiating graceful shutdown"),
+                _ = tokio::signal::ctrl_c() => tracing::info!("CTRL-C received — initiating graceful shutdown"),
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            tokio::signal::ctrl_c().await.ok();
+            tracing::info!("CTRL-C received — initiating graceful shutdown");
+        }
+
+        // Stop accepting new requests; wait for in-flight requests to complete
+        shutdown_handle.stop(true).await;
+    });
+
+    // Run until server stops
+    server.await?;
+
+    // H.4: Post-shutdown cleanup
+    tracing::info!("HTTP server stopped — aborting background tasks");
+    for task in background_tasks {
+        task.abort();
+    }
+
+    tracing::info!("Flushing telemetry...");
+    telemetry::shutdown_telemetry();
+
+    tracing::info!("Shutdown complete");
+    Ok(())
 }

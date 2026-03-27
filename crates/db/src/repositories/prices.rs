@@ -1,6 +1,5 @@
 //! Price history repository
 
-use crate::decimal_helpers::{decimal_to_text, opt_text_to_decimal};
 use crate::error::DbError;
 use crate::models::{InsertPriceRequest, PriceHistoryRow};
 use crate::Pool;
@@ -20,10 +19,6 @@ impl PriceRepository {
 
     /// Inserts a new price record
     pub async fn insert(&self, request: InsertPriceRequest) -> Result<i64, DbError> {
-        // Convert Decimal to TEXT
-        let price_text = decimal_to_text(request.price);
-        let round_id_text = request.round_id.map(decimal_to_text);
-
         let result: (i64,) = sqlx::query_as(
             r#"
             INSERT INTO price_history (currency_pair, price, source, is_stale, round_id)
@@ -32,10 +27,10 @@ impl PriceRepository {
             "#,
         )
         .bind(&request.currency_pair)
-        .bind(&price_text)
+        .bind(request.price)
         .bind(&request.source)
         .bind(request.is_stale)
-        .bind(round_id_text)
+        .bind(request.round_id)
         .fetch_one(&self.pool)
         .await?;
 
@@ -116,14 +111,12 @@ impl PriceRepository {
         currency_pair: &str,
         start_time: DateTime<Utc>,
     ) -> Result<PriceStats, DbError> {
-        // Since price is TEXT, we need to convert all values to NUMERIC for aggregation
-        // then cast back to TEXT for retrieval
-        let result = sqlx::query_as::<_, (Option<String>, Option<String>, Option<String>, i64)>(
+        let result = sqlx::query_as::<_, (Option<Decimal>, Option<Decimal>, Option<Decimal>, i64)>(
             r#"
-            SELECT 
-                MIN(price::numeric)::text as min_price,
-                MAX(price::numeric)::text as max_price,
-                AVG(price::numeric)::text as avg_price,
+            SELECT
+                MIN(price) as min_price,
+                MAX(price) as max_price,
+                AVG(price) as avg_price,
                 COUNT(*) as count
             FROM price_history
             WHERE currency_pair = $1
@@ -137,9 +130,9 @@ impl PriceRepository {
 
         Ok(PriceStats {
             currency_pair: currency_pair.to_string(),
-            min_price: opt_text_to_decimal(result.0.as_deref())?.unwrap_or(Decimal::ZERO),
-            max_price: opt_text_to_decimal(result.1.as_deref())?.unwrap_or(Decimal::ZERO),
-            avg_price: opt_text_to_decimal(result.2.as_deref())?.unwrap_or(Decimal::ZERO),
+            min_price: result.0.unwrap_or(Decimal::ZERO),
+            max_price: result.1.unwrap_or(Decimal::ZERO),
+            avg_price: result.2.unwrap_or(Decimal::ZERO),
             count: result.3,
         })
     }

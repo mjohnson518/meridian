@@ -136,6 +136,34 @@ jobs:
       - name: Build
         run: npm run build
 
+  slither:
+    runs-on: ubuntu-latest
+    name: Slither Static Analysis
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: recursive
+
+      - name: Install Foundry (for solc)
+        uses: foundry-rs/foundry-toolchain@8f1998e9878d786675189ef566a2e4bf24869773 # v1.2.0
+        with:
+          version: nightly
+
+      - name: Run Slither
+        uses: crytic/slither-action@e921a5dde0c73a12bc30bcdb38c9d17c81e4cd2e # v0.4.0
+        with:
+          target: contracts/
+          slither-config: contracts/slither.config.json
+          fail-on: high
+          sarif: results.sarif
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@9278e6c8e9a8f05df9b07ec8b54de80ad04c5f50 # v3
+        if: always()
+        with:
+          sarif_file: results.sarif
+
   contracts:
     runs-on: ubuntu-latest
     name: Solidity Tests

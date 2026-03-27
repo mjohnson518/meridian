@@ -7,21 +7,13 @@
 //! - Repository pattern for data access
 //! - Connection pooling with PgPool
 //! - Transaction support
-//! - Type-safe queries with SQLx
+//! - Type-safe queries with SQLx (rust_decimal feature: NUMERIC ↔ Decimal)
 //! - Migration support
-//!
-//! ## Note on Decimal Storage
-//!
-//! Currently using TEXT storage for rust_decimal::Decimal due to SQLx-Decimal
-//! compatibility issues. This is a temporary workaround.
-//! TODO: Migrate to native NUMERIC when SQLx-Decimal is compatible
 
-mod decimal_helpers;
 mod error;
 mod models;
 mod repositories;
 
-pub use decimal_helpers::{decimal_to_text, opt_text_to_decimal, text_to_decimal};
 pub use error::DbError;
 pub use models::*;
 pub use repositories::*;
