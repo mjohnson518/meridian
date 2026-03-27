@@ -19,6 +19,7 @@
 //! Implement `CustodyAdapter` for your type, add it to `CustodyAdapterKind`,
 //! and wire it up via the `CUSTODY_PROVIDER` environment variable.
 
+pub mod bitgo;
 pub mod fireblocks;
 pub mod mock;
 
@@ -158,6 +159,17 @@ pub fn build_adapter_from_env() -> Box<dyn CustodyAdapter> {
 
             tracing::info!("Initializing Fireblocks custody adapter");
             Box::new(fireblocks::FireblocksAdapter::new(api_key, api_secret, base_url))
+        }
+        "bitgo" => {
+            let api_key = std::env::var("BITGO_API_KEY")
+                .expect("BITGO_API_KEY required when CUSTODY_PROVIDER=bitgo");
+            let wallet_id = std::env::var("BITGO_WALLET_ID")
+                .expect("BITGO_WALLET_ID required when CUSTODY_PROVIDER=bitgo");
+            let base_url = std::env::var("BITGO_BASE_URL")
+                .unwrap_or_else(|_| "https://app.bitgo.com".to_string());
+
+            tracing::info!("Initializing BitGo custody adapter");
+            Box::new(bitgo::BitGoAdapter::new(api_key, wallet_id, base_url))
         }
         _ => {
             tracing::info!("Using mock custody adapter (CUSTODY_PROVIDER={})", provider);

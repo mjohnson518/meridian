@@ -4,6 +4,7 @@
 //! Ethereum, Solana, Base, Arbitrum, Optimism, and other supported chains.
 
 pub mod execution;
+pub mod signer;
 
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};

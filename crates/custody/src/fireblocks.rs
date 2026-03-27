@@ -19,10 +19,12 @@
 
 use super::{BondHolding, CustodyAdapter, CustodyError, CustodyProof, CustodyResult, ReserveBalance};
 use chrono::{Duration, Utc};
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromStr;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 /// Fireblocks vault balance response (subset of API response)
@@ -43,11 +45,28 @@ struct FireblocksAsset {
     locked_amount: String,
 }
 
+/// JWT claims for Fireblocks API authentication
+#[derive(Debug, Serialize)]
+struct FireblocksClaims {
+    /// API key (subject)
+    sub: String,
+    /// Unique nonce to prevent replay attacks
+    nonce: String,
+    /// Issued at (Unix timestamp)
+    iat: i64,
+    /// Expires at (Unix timestamp, iat + 30s)
+    exp: i64,
+    /// Request URI path
+    uri: String,
+    /// SHA-256 hex hash of the request body
+    #[serde(rename = "bodyHash")]
+    body_hash: String,
+}
+
 /// Fireblocks API client for custody operations
 pub struct FireblocksAdapter {
     api_key: String,
-    /// RSA private key PEM for JWT signing (used in build_auth_header)
-    #[allow(dead_code)]
+    /// RSA private key PEM for JWT signing
     api_secret: String,
     base_url: String,
     http: reqwest::Client,
@@ -72,20 +91,32 @@ impl FireblocksAdapter {
         Self { api_key, api_secret, base_url, http, vault_ids }
     }
 
-    /// Build a signed JWT for Fireblocks API authentication.
+    /// Build a signed RS256 JWT for Fireblocks API authentication.
     ///
-    /// In production, use a proper JWT library with RS256 signing.
-    /// This is a placeholder — a real implementation should sign using
-    /// the RSA private key from `api_secret`.
-    fn build_auth_header(&self, _path: &str, _body: &str) -> CustodyResult<String> {
-        // TODO(custody): Implement Fireblocks JWT signing with RS256.
-        // The JWT requires: sub=api_key, nonce=uuid, iat=now, exp=now+30s,
-        //   uri=path, bodyHash=sha256(body).
-        // For now, return a placeholder that will be replaced with real signing.
-        Err(CustodyError::Config(
-            "Fireblocks JWT signing not yet implemented — requires RS256 library. \
-             Set CUSTODY_PROVIDER=mock for testing.".to_string()
-        ))
+    /// Fireblocks requires every request to include a JWT signed with the
+    /// customer's RSA private key. Claims: sub=api_key, nonce=uuid,
+    /// iat=now, exp=now+30s, uri=path, bodyHash=sha256(body).
+    fn build_auth_header(&self, path: &str, body: &str) -> CustodyResult<String> {
+        let now = Utc::now().timestamp();
+
+        // SHA-256 hash of request body (empty string hashes to a fixed value)
+        let body_hash = hex::encode(Sha256::digest(body.as_bytes()));
+
+        let claims = FireblocksClaims {
+            sub: self.api_key.clone(),
+            nonce: Uuid::new_v4().to_string(),
+            iat: now,
+            exp: now + 30,
+            uri: path.to_string(),
+            body_hash,
+        };
+
+        let header = Header::new(Algorithm::RS256);
+        let encoding_key = EncodingKey::from_rsa_pem(self.api_secret.as_bytes())
+            .map_err(|e| CustodyError::Auth(format!("Invalid RSA PEM key: {}", e)))?;
+
+        jsonwebtoken::encode(&header, &claims, &encoding_key)
+            .map_err(|e| CustodyError::Auth(format!("JWT signing failed: {}", e)))
     }
 
     async fn get_vault_balances(&self) -> CustodyResult<Vec<FireblocksVaultBalance>> {

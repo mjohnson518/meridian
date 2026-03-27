@@ -22,6 +22,9 @@ tokio = { workspace = true }
 # Database (for confirmation worker queries)
 sqlx = { workspace = true }
 
+# Async trait support (for SignerProvider trait)
+async-trait = { workspace = true }
+
 # Observability
 tracing = { workspace = true }
 
