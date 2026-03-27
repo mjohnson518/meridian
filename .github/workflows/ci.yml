@@ -136,6 +136,72 @@ jobs:
       - name: Build
         run: npm run build
 
+  contracts:
+    runs-on: ubuntu-latest
+    name: Solidity Tests
+
+    defaults:
+      run:
+        working-directory: contracts
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@8f1998e9878d786675189ef566a2e4bf24869773 # v1.2.0
+        with:
+          version: nightly
+
+      - name: Cache Foundry build
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.2
+        with:
+          path: contracts/out
+          key: ${{ runner.os }}-foundry-${{ hashFiles('contracts/src/**/*.sol') }}
+
+      - name: Build contracts
+        run: forge build --sizes
+
+      - name: Run tests (unit + fuzz + invariant)
+        run: forge test -vvv
+
+  solana:
+    runs-on: ubuntu-latest
+    name: Solana / Anchor Tests
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@d8352f6b1d2e870bc5716f46a5d354a8a5ab0d2d # 1.75.0
+        with:
+          toolchain: "1.75.0"
+
+      - name: Cache cargo registry
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-solana-cargo-${{ hashFiles('programs/**/Cargo.lock') }}
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v1.18.22/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Install Anchor CLI
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
+
+      - name: Build Anchor program
+        working-directory: programs/meridian-solana
+        run: anchor build
+
+      - name: Run Anchor tests
+        working-directory: programs/meridian-solana
+        run: anchor test --skip-local-validator
+
   # DEVOPS-CRIT-005: Generate Software Bill of Materials
   sbom:
     runs-on: ubuntu-latest
